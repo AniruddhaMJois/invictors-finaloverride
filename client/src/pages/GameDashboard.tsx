@@ -16,10 +16,8 @@ import { Stage1Module } from '../components/stages/Stage1Module';
 import { Stage2Module } from '../components/stages/Stage2Module';
 import { Stage3Module } from '../components/stages/Stage3Module';
 import { Stage4Module } from '../components/stages/Stage4Module';
-import {
-  Stage5Module,
-  Stage6Module
-} from '../components/stages/StagePlaceholders';
+import { Stage5Module } from '../components/stages/Stage5Module';
+import { Stage6Module } from '../components/stages/Stage6Module';
 
 interface GameDashboardProps {
   onOpenLeaderboard: () => void;

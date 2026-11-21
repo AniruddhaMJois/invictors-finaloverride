@@ -37,7 +37,7 @@ On startup, the server automatically detects your network interface and prints:
 - **Bundle Size Budget:**
   - `dist/index.html`: 0.69 kB (0.42 kB gzipped)
   - `dist/assets/index.css`: 7.41 kB (2.47 kB gzipped)
-  - `dist/assets/index.js`: **125.06 kB (36.01 kB gzipped)** — *Well under the strict 150 KB limit!*
+  - `dist/assets/index.js`: **137.56 kB (38.47 kB gzipped)** — *All 6 stages together well under the strict 150 KB limit!*
 - **Offline Guarantee:** 100% offline on college LAN (zero external CDNs, Google Fonts, or remote assets)
 
 ### Server
@@ -176,6 +176,52 @@ On startup, the server automatically detects your network interface and prints:
 
 ---
 
+## 🧠 Stage 5: Hexadecimal Memory Core & Bus Decoupler
+
+- **Concept:** A 6×4 matrix of memory registers across Channels A through F. Squads decouple the active high-voltage data bus running along Column 1 and translate the bytes into ASCII text.
+- **Active Bus Line 1 (High-Voltage Bus):**
+  - Channel A: `48` $\to$ `'H'`
+  - Channel B: `45` $\to$ `'E'`
+  - Channel C: `58` $\to$ `'X'`
+  - Channel D: `38` $\to$ `'8'`
+  - Channel E: `32` $\to$ `'2'`
+  - Channel F: `44` $\to$ `'D'`
+- **Built-in Hex Decoder Workbench:**
+  - **"Read Active Bus Line"** button automatically extracts `48 45 58 38 32 44` from the active column into the decoder buffer.
+  - **"Decode Hex to Text"** translates byte pairs to ASCII characters with live breakdown pills (`0x48 = 'H'`, etc.).
+  - One-click copy button for the recovered fragment.
+- **Target Answer:** `HEX82D`.
+- **Gating:** Access to `/api/stage/5` is strictly forbidden (HTTP 403) until Stage 4 is completed.
+
+---
+
+## 🧩 Stage 6: Final Integration & Master Override Synthesis
+
+- **Concept:** The culmination challenge of FINAL OVERRIDE. Squads synthesize all 5 recovered fragments into the final master override key.
+- **Alphabetical (A–Z) Mission Ordering Rule:**
+  1. **CTF Challenges** (Stage 4) $\to$ `f4` = `91X`
+  2. **Decoding** (Stage 2) $\to$ `f2` = `7K2`
+  3. **Hex Decryption** (Stage 5) $\to$ `f5` = `HEX82D`
+  4. **Prompt the AI** (Stage 3, reversed) $\to$ `reverse(f3)` = `TIBRO` (`ORBIT` reversed)
+  5. **Signal Intercept** (Stage 1) $\to$ `f1` = `NOVA`
+- **Key Body & Checksum:**
+  - Key Body: `91X-7K2-HEX82D-TIBRO-NOVA`
+  - Checksum rule: Sum of all single digits (`0–9`) appearing inside the key body:
+    $$9 + 1 + 7 + 2 + 8 + 2 = 29$$
+  - Canonical Final Master Key: `FO{91X-7K2-HEX82D-TIBRO-NOVA}#29`
+- **Interactive Synthesis Workbench:**
+  - Visual display of the 5 missions with live fragment binding from the team's progress.
+  - Interactive stage 3 reverser indicator (`ORBIT` $\to$ `TIBRO`).
+  - Single-digit checksum calculation breakdown.
+  - Complete assembled key preview with quick-copy tool.
+- **Victory & Game Completion Flow:**
+  - Clock officially freezes on successful Stage 6 submission.
+  - Computes `Final Rank Time = Elapsed Time + All Accumulated Penalties`.
+  - Generates cryptographic 8-character verification hash.
+  - Switches to Victory Celebration screen displaying team stats and direct link to official leaderboard.
+
+---
+
 ## 🎨 Design System Tokens
 
 Tokens are defined on `:root`:
@@ -205,7 +251,7 @@ Tokens are defined on `:root`:
 
 ## 🧪 Automated Test Suite
 
-To run all 28 automated tests:
+To run all 35 automated tests:
 ```bash
 npm test
 ```
@@ -239,3 +285,10 @@ npm test
 26. ✅ **Stage 4 Station Logic:** Validates Station 1 (9), Station 2 (1), Station 3 (X) and ensures wrong attempts are penalized.
 27. ✅ **Stage 4 Submission Gate:** Rejects `91X` before all 3 stations are solved with `"Solve all 3 stations first. 🛡️"`, accepts and advances to Stage 5 after all 3 are solved.
 28. ✅ **Stage 4 Cross-Device Station Sync:** Solved stations persist in SQLite `stage_data` and synchronize live over WebSockets.
+29. ✅ **Stage 5 Content Gating:** Returns 403 Forbidden when team is not on Stage 5.
+30. ✅ **Stage 5 Hex Decoding Engine:** Pure function test validating `48 45 58 38 32 44` decodes to `HEX82D`.
+31. ✅ **Stage 5 Submission & Decoy Trap:** Validates `HEX82D` acceptance and `ZETA9` decoy penalty tracking.
+32. ✅ **Stage 5 Hints:** Verifies Column 1 and ASCII conversion clues for Hint 1 and Hint 2.
+33. ✅ **Stage 6 A-Z Synthesis & Checksum:** Validates alphabetical mission sorting (C, D, H, P, S), inversion of Stage 3 (`TIBRO`), and single-digit checksum ($9+1+7+2+8+2 = 29$).
+34. ✅ **Stage 6 Victory Flow:** Validates master key `FO{91X-7K2-HEX82D-TIBRO-NOVA}#29`, clock freezing, rank calculation, and 8-character verification hash.
+35. ✅ **Stage 6 Hints:** Confirms mission ordering and digit summation guidance.

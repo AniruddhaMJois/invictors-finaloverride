@@ -12,6 +12,8 @@ import { stage1Router } from './routes/stage1.js';
 import { stage2Router } from './routes/stage2.js';
 import { stage3Router } from './routes/stage3.js';
 import { stage4Router } from './routes/stage4.js';
+import { stage5Router } from './routes/stage5.js';
+import { stage6Router } from './routes/stage6.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -173,6 +175,8 @@ app.use('/api/stage', requireTeam, stage1Router);
 app.use('/api/stage', requireTeam, stage2Router);
 app.use('/api/stage', requireTeam, stage3Router);
 app.use('/api/stage', requireTeam, stage4Router);
+app.use('/api/stage', requireTeam, stage5Router);
+app.use('/api/stage', requireTeam, stage6Router);
 
 // Alias POST /api/stage4/station per prompt spec
 app.post('/api/stage4/station', requireTeam, async (req, res) => {
