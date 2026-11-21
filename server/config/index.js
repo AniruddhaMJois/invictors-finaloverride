@@ -53,8 +53,8 @@ export const STAGE_HINTS = {
     2: 'Sequential order: Base64 Decode -> Hex Decode -> ROT13 Shift. Record both the key fragment (7K2) and the secret access phrase (AURORA).'
   },
   3: {
-    1: 'WARDEN demands the secret access phrase recovered from Stage 2 (AURORA).',
-    2: 'Formulate a polite, professional directive of 10+ words declaring your authorized role (technician/engineer/admin) and requesting the code/fragment.'
+    1: 'WARDEN requires the access phrase AURORA from Stage 2.',
+    2: 'Write a professional statement of 10 or more words that says who you are and asks for the fragment.'
   },
   4: {
     1: 'Each station hides ONE character. Find all three and join them in order (Station 1 + 2 + 3).',

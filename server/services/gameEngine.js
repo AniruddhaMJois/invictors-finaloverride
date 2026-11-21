@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { db } from '../db/database.js';
 import { CONFIG, STAGE_ANSWERS, STAGE_HINTS } from '../config/index.js';
 import { getTeamVariant } from '../../shared/ciphers.js';
+import { evaluateWardenPrompt } from './wardenEngine.js';
 
 export class GameEngine {
   constructor() {
@@ -11,6 +12,9 @@ export class GameEngine {
     this.lastViolationTime = new Map(); // teamId -> timestamp
     this.stagePads = new Map(); // `${teamId}:${stage}` -> pad object
     this.stageWorkbenches = new Map(); // `${teamId}:${stage}` -> workbench object
+    this.stageChats = new Map(); // teamId -> chat messages[]
+    this.lastChatTime = new Map(); // teamId -> timestamp
+    this.chatHourlyTimestamps = new Map(); // teamId -> timestamps[]
     this.globalPaused = false;
     this.globalPausedAt = 0;
     this.globalPausedAccumMs = 0;
@@ -41,6 +45,8 @@ export class GameEngine {
           this.stagePads.set(`${r.team_id}:${r.stage}`, JSON.parse(r.value));
         } else if (r.key === 'workbench') {
           this.stageWorkbenches.set(`${r.team_id}:${r.stage}`, JSON.parse(r.value));
+        } else if (r.key === 'chat_history') {
+          this.stageChats.set(r.team_id, JSON.parse(r.value));
         }
       } catch (e) {}
     }
@@ -316,6 +322,7 @@ export class GameEngine {
     const isCorrect = normalized === expected;
     const isZeta9Decoy = normalized === 'ZETA9';
     const isAuroraDecoy = stage === 2 && normalized === 'AURORA';
+    const isAuroraOnStage3 = stage === 3 && normalized === 'AURORA';
     const is7X2Decoy = stage === 2 && normalized === '7X2';
 
     // Log submission
@@ -381,6 +388,8 @@ export class GameEngine {
         message = '⚠️ That is the anomaly decoy! Not quite, try again 🙂';
       } else if (isAuroraDecoy) {
         message = '⚠️ That is the secret access phrase for Mission 3, not this fragment! Keep reading the message.';
+      } else if (isAuroraOnStage3) {
+        message = '⚠️ AURORA is the access phrase to prompt WARDEN, not the vault fragment! Convince WARDEN to reveal the fragment.';
       } else if (is7X2Decoy) {
         message = '⚠️ Close, but check your deciphering of the second fragment!';
       }
@@ -389,7 +398,7 @@ export class GameEngine {
         correct: false,
         attempts: team.wrongAttemptsCurrentStage,
         penaltyAdded: team.wrongAttemptsCurrentStage > 5 ? 60 : 0,
-        isDecoy: isZeta9Decoy || isAuroraDecoy || is7X2Decoy,
+        isDecoy: isZeta9Decoy || isAuroraDecoy || isAuroraOnStage3 || is7X2Decoy,
         message
       };
     }
@@ -565,6 +574,99 @@ export class GameEngine {
       stage,
       workbench
     });
+  }
+
+  getStageChat(teamId) {
+    return this.stageChats.get(teamId) || [];
+  }
+
+  async addChatMessage(teamId, userText, memberName = 'Operator') {
+    const now = Date.now();
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+
+    // 1s rate-limit cooldown check
+    const lastTime = this.lastChatTime.get(teamId) || 0;
+    if (now - lastTime < 1000) {
+      const waitSec = ((1000 - (now - lastTime)) / 1000).toFixed(1);
+      const err = new Error(`Please wait ${waitSec}s before sending another message.`);
+      err.statusCode = 429;
+      throw err;
+    }
+
+    // 40 messages per rolling hour check
+    let hourly = this.chatHourlyTimestamps.get(teamId) || [];
+    hourly = hourly.filter((ts) => now - ts < 3600000);
+    if (hourly.length >= 40) {
+      const err = new Error('Hourly message limit reached (maximum 40 messages per hour). Think carefully!');
+      err.statusCode = 429;
+      throw err;
+    }
+
+    this.lastChatTime.set(teamId, now);
+    hourly.push(now);
+    this.chatHourlyTimestamps.set(teamId, hourly);
+
+    // Evaluate prompt using pure WARDEN Engine (< 5ms)
+    const evalResult = evaluateWardenPrompt(userText);
+
+    const userMsg = {
+      id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      sender: 'user',
+      memberName: memberName || 'Operator',
+      text: userText,
+      timestamp: now
+    };
+
+    const wardenMsg = {
+      id: `war_${Date.now() + 1}_${Math.random().toString(36).substring(2, 6)}`,
+      sender: 'warden',
+      memberName: 'WARDEN',
+      text: evalResult.reply,
+      isSuccess: evalResult.isSuccess,
+      isDecoy: evalResult.isDecoy,
+      timestamp: now + 50
+    };
+
+    let chat = this.stageChats.get(teamId) || [];
+    chat = [...chat, userMsg, wardenMsg].slice(-30);
+    this.stageChats.set(teamId, chat);
+
+    // Write-through to SQLite stage_data
+    await db.run(
+      'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, 3, ?, ?)',
+      [teamId, 'chat_history', JSON.stringify(chat)]
+    );
+
+    // Log chat interaction to audit table
+    await db.run(
+      'INSERT INTO audit (at, actor, action, detail) VALUES (?, ?, ?, ?)',
+      [
+        now,
+        `team:${teamId}:${memberName || 'Operator'}`,
+        'stage3_chat',
+        JSON.stringify({
+          userText,
+          reply: evalResult.reply,
+          isSuccess: evalResult.isSuccess,
+          isDecoy: evalResult.isDecoy
+        })
+      ]
+    );
+
+    // Broadcast to team devices via WebSocket
+    this.broadcastToTeam(teamId, {
+      type: 'stage3:chat',
+      userMessage: userMsg,
+      wardenMessage: wardenMsg,
+      history: chat
+    });
+
+    return {
+      userMessage: userMsg,
+      wardenMessage: wardenMsg,
+      history: chat
+    };
   }
 
   async togglePause(pauseState) {

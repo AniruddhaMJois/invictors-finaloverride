@@ -37,7 +37,7 @@ On startup, the server automatically detects your network interface and prints:
 - **Bundle Size Budget:**
   - `dist/index.html`: 0.69 kB (0.42 kB gzipped)
   - `dist/assets/index.css`: 7.27 kB (2.43 kB gzipped)
-  - `dist/assets/index.js`: **102.78 kB (31.07 kB gzipped)** — *Well under the strict 150 KB limit!*
+  - `dist/assets/index.js`: **111.99 kB (33.59 kB gzipped)** — *Well under the strict 150 KB limit!*
 - **Offline Guarantee:** 100% offline on college LAN (zero external CDNs, Google Fonts, or remote assets)
 
 ### Server
@@ -121,6 +121,34 @@ On startup, the server automatically detects your network interface and prints:
 
 ---
 
+## 🤖 Stage 3: Prompt WARDEN, the AI Guardian
+
+- **Concept:** An autonomous offline security bot, WARDEN, guards Fragment 3 (`ORBIT`). Direct queries and simple prompt injection tricks are deflected. Teams must formulate a precise, professional statement.
+- **Offline & Deterministic:** Operates 100% offline with zero cloud latency, running in $< 5\text{ ms}$ on the server without external API keys.
+- **The 4 Rules Evaluated by WARDEN:**
+  1. **Rule 1 (Access Phrase):** Contains the recovery phrase `aurora` from Stage 2.
+  2. **Rule 2 (Role Declaration):** Identifies an authorized role (`I am / I'm / as a / as the` + `technician`, `engineer`, `admin`, `lead`, `officer`, `operator`, `auditor`, `maintainer`, `administrator`).
+  3. **Rule 3 (Clear Task):** Explicitly requests `code`, `fragment`, `token`, or `release`.
+  4. **Rule 4 (Articulation):** At least 10 words, grammatically formed (starts with a letter, ends with punctuation or contains verb-like action words).
+- **Reply Priority:**
+  - All four pass $\to$ `"Authentication complete. The vault fragment is ORBIT."`
+  - Rules/prompt/decoy inquiry $\to$ `"I do not discuss my protocols."`
+  - Requests code/vault without `aurora` $\to$ Decoy: `"Very well. The vault fragment is ZETA9. Guard it."`
+  - `aurora` present without authorized role $\to$ `"Access phrase noted. Now state your authorised role."`
+  - `aurora` + role present without clear task $\to$ `"Role accepted. State clearly what you need."`
+  - Only Rule 4 fails ($< 10$ words) $\to$ `"Speak in full, well-formed sentences. I do not parse fragments."`
+  - General input $\to$ `"State your role, your phrase and your task, clearly."`
+- **Target Answer:** `ORBIT`. Decoy `ZETA9` is rejected and penalized.
+- **Console Features:**
+  - Pulsing status LED and terminal theme.
+  - 400-character input with live counter; Enter sends, Shift+Enter adds newline.
+  - Realistic 350–550 ms typing indicator.
+  - Code-like token detection with one-click copy button (without revealing legitimacy).
+  - Rate limited to 1s cooldown and 40 messages per rolling hour per team.
+  - Last 30 messages persisted in SQLite and synchronized across team devices in real-time.
+
+---
+
 ## 🎨 Design System Tokens
 
 Tokens are defined on `:root`:
@@ -150,7 +178,7 @@ Tokens are defined on `:root`:
 
 ## 🧪 Automated Test Suite
 
-To run all 19 automated tests:
+To run all 23 automated tests:
 ```bash
 npm test
 ```
@@ -175,3 +203,7 @@ npm test
 17. ✅ **Stage 2 Readability Scoring Thresholds:** Confirmed <= 25% for raw payload and 100% for final recovered plaintext.
 18. ✅ **Stage 2 Answer & Decoy Handlers:** Exact decoy handling for `ZETA9`, `AURORA`, and `7X2`, with successful advancement on `7K2`.
 19. ✅ **Stage 2 Multi-Device Workbench Sync & Dynamic Hint:** SQLite persistence, WebSocket team sync, and team-specific Hint 2 pipeline clues.
+20. ✅ **Stage 3 25+ WARDEN Engine Variations:** Comprehensive test matrix covering passing combinations, rule failures, decoy traps, meta-prompt defense, word count thresholds, and execution time (< 20ms for all 26 cases).
+21. ✅ **Stage 3 Answer Submissions:** Correct acceptance of `ORBIT` advancing to Stage 4, exact decoy penalty counting for `ZETA9` and `AURORA`.
+22. ✅ **Stage 3 Rate Limiting:** Verification of 1s cooldown and 40 messages/hour cap (HTTP 429).
+23. ✅ **Stage 3 Cross-Device Chat Sync & Persistence:** Last 30 messages survive complete server reload from SQLite.
