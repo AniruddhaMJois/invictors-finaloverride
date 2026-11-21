@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { db } from '../db/database.js';
 import { CONFIG, STAGE_ANSWERS, STAGE_HINTS } from '../config/index.js';
+import { getTeamVariant } from '../../shared/ciphers.js';
 
 export class GameEngine {
   constructor() {
@@ -9,6 +10,7 @@ export class GameEngine {
     this.lastSubmitTime = new Map(); // teamId -> timestamp
     this.lastViolationTime = new Map(); // teamId -> timestamp
     this.stagePads = new Map(); // `${teamId}:${stage}` -> pad object
+    this.stageWorkbenches = new Map(); // `${teamId}:${stage}` -> workbench object
     this.globalPaused = false;
     this.globalPausedAt = 0;
     this.globalPausedAccumMs = 0;
@@ -31,11 +33,15 @@ export class GameEngine {
       this.tokens.set(d.token, { teamId: d.team_id, memberId: d.member_id });
     }
 
-    // Load stage pads
-    const padRows = await db.all("SELECT team_id, stage, value FROM stage_data WHERE key = 'pad'");
-    for (const r of padRows) {
+    // Load stage data (pads and workbenches)
+    const stageDataRows = await db.all('SELECT team_id, stage, key, value FROM stage_data');
+    for (const r of stageDataRows) {
       try {
-        this.stagePads.set(`${r.team_id}:${r.stage}`, JSON.parse(r.value));
+        if (r.key === 'pad') {
+          this.stagePads.set(`${r.team_id}:${r.stage}`, JSON.parse(r.value));
+        } else if (r.key === 'workbench') {
+          this.stageWorkbenches.set(`${r.team_id}:${r.stage}`, JSON.parse(r.value));
+        }
       } catch (e) {}
     }
 
@@ -139,26 +145,22 @@ export class GameEngine {
   }
 
   async registerTeam({ teamName, coordinator, members }) {
-    // Validation
     const cleanTeamName = (teamName || '').trim();
     if (!cleanTeamName || cleanTeamName.length > 24) {
       throw new Error('Team name must be between 1 and 24 characters.');
     }
 
-    // Check duplicate team name (case-insensitive)
     for (const t of this.teams.values()) {
       if (t.teamName.toLowerCase() === cleanTeamName.toLowerCase()) {
         throw new Error('Team name is already taken. Please choose another.');
       }
     }
 
-    // Check coordinator
     const validCoordinators = ['Arun', 'Divya', 'Kiran', 'Pooja', 'Rakshith'];
     if (!coordinator || !validCoordinators.includes(coordinator)) {
       throw new Error('Please select a valid event coordinator.');
     }
 
-    // Check members
     if (!Array.isArray(members) || members.length < 3 || members.length > 4) {
       throw new Error('Squad must consist of 3 or 4 members.');
     }
@@ -170,7 +172,6 @@ export class GameEngine {
       }
     }
 
-    // Unique names check
     const memberSet = new Set(cleanMembers.map((m) => m.toLowerCase()));
     if (memberSet.size !== cleanMembers.length) {
       throw new Error('All member names within a squad must be unique.');
@@ -194,7 +195,6 @@ export class GameEngine {
       insertedMembers.push({ id: mInsert.lastID, name: cleanMembers[i], isLeader: i === 0 });
     }
 
-    // Bind leader device
     const leaderToken = this.generateDeviceToken(teamId, insertedMembers[0].id);
     await db.run('INSERT INTO devices (token, team_id, member_id, bound_at) VALUES (?, ?, ?, ?)', [
       leaderToken,
@@ -204,7 +204,6 @@ export class GameEngine {
     ]);
     this.tokens.set(leaderToken, { teamId, memberId: insertedMembers[0].id });
 
-    // Initial note
     await db.run('INSERT INTO notes (team_id, text) VALUES (?, ?)', [teamId, '']);
 
     const teamState = {
@@ -253,7 +252,6 @@ export class GameEngine {
       throw new Error(`Member "${memberName}" not found in squad "${foundTeam.teamName}".`);
     }
 
-    // Check if this member slot is already bound
     const boundDevices = await db.all('SELECT token, member_id FROM devices WHERE team_id = ?', [
       foundTeam.id
     ]);
@@ -265,7 +263,6 @@ export class GameEngine {
       );
     }
 
-    // Bind this device
     const token = this.generateDeviceToken(foundTeam.id, member.id);
     await db.run('INSERT INTO devices (token, team_id, member_id, bound_at) VALUES (?, ?, ?, ?)', [
       token,
@@ -318,6 +315,8 @@ export class GameEngine {
 
     const isCorrect = normalized === expected;
     const isZeta9Decoy = normalized === 'ZETA9';
+    const isAuroraDecoy = stage === 2 && normalized === 'AURORA';
+    const is7X2Decoy = stage === 2 && normalized === '7X2';
 
     // Log submission
     await db.run(
@@ -326,7 +325,6 @@ export class GameEngine {
     );
 
     if (isCorrect) {
-      // Record progress
       const fragment = STAGE_ANSWERS[stage];
       await db.run(
         'INSERT OR REPLACE INTO progress (team_id, stage, fragment, solved_at, wrong_attempts) VALUES (?, ?, ?, ?, ?)',
@@ -337,7 +335,6 @@ export class GameEngine {
       team.wrongAttemptsCurrentStage = 0;
 
       if (stage === 6) {
-        // Complete challenge!
         team.isCompleted = true;
         team.endTime = now;
         team.verificationCode = this.calculateVerificationCode(team.teamName, team.startTime, now);
@@ -362,10 +359,8 @@ export class GameEngine {
         verificationCode: team.verificationCode
       };
     } else {
-      // Wrong attempt
       team.wrongAttemptsCurrentStage += 1;
 
-      // Update progress table
       await db.run(
         `INSERT INTO progress (team_id, stage, fragment, solved_at, wrong_attempts) 
          VALUES (?, ?, '', ?, ?)
@@ -373,7 +368,6 @@ export class GameEngine {
         [teamId, stage, now, team.wrongAttemptsCurrentStage, team.wrongAttemptsCurrentStage]
       );
 
-      // Penalties apply after 5 attempts (+60s each)
       if (team.wrongAttemptsCurrentStage > 5) {
         team.penaltyBreakdown.wrongAttempts += 60;
         team.totalPenaltySeconds += 60;
@@ -382,15 +376,20 @@ export class GameEngine {
       this.broadcastTeamState(teamId);
       this.broadcastLeaderboard();
 
-      const message = isZeta9Decoy
-        ? '⚠️ That is the anomaly decoy! Not quite, try again 🙂'
-        : 'Not quite, try again 🙂';
+      let message = 'Not quite, try again 🙂';
+      if (isZeta9Decoy) {
+        message = '⚠️ That is the anomaly decoy! Not quite, try again 🙂';
+      } else if (isAuroraDecoy) {
+        message = '⚠️ That is the secret access phrase for Mission 3, not this fragment! Keep reading the message.';
+      } else if (is7X2Decoy) {
+        message = '⚠️ Close, but check your deciphering of the second fragment!';
+      }
 
       return {
         correct: false,
         attempts: team.wrongAttemptsCurrentStage,
         penaltyAdded: team.wrongAttemptsCurrentStage > 5 ? 60 : 0,
-        isDecoy: isZeta9Decoy,
+        isDecoy: isZeta9Decoy || isAuroraDecoy || is7X2Decoy,
         message
       };
     }
@@ -410,14 +409,20 @@ export class GameEngine {
 
     if (!team.hintsUsed[stage]) team.hintsUsed[stage] = {};
 
-    // Hint 2 requires Hint 1
     if (hintNumber === 2 && !team.hintsUsed[stage][1]) {
       throw new Error('Hint 1 must be unlocked before unlocking Hint 2.');
     }
 
-    // If already unlocked, return current text if not expired
     const existing = team.hintsUsed[stage][hintNumber];
     const now = Date.now();
+
+    const getHintContent = () => {
+      if (stage === 2 && hintNumber === 2) {
+        const variant = getTeamVariant(teamId);
+        if (variant && variant.hintClue) return variant.hintClue;
+      }
+      return STAGE_HINTS[stage][hintNumber];
+    };
 
     if (existing) {
       if (now <= existing.expiresAt) {
@@ -425,7 +430,7 @@ export class GameEngine {
           stage,
           hintNumber,
           expiresAt: existing.expiresAt,
-          text: STAGE_HINTS[stage][hintNumber],
+          text: getHintContent(),
           isExpired: false
         };
       } else {
@@ -439,9 +444,8 @@ export class GameEngine {
       }
     }
 
-    // New unlock
-    const penaltySeconds = hintNumber === 1 ? 180 : 300; // +3 min, +5 min
-    const expiresAt = now + 30000; // 30 seconds
+    const penaltySeconds = hintNumber === 1 ? 180 : 300;
+    const expiresAt = now + 30000;
 
     await db.run(
       'INSERT INTO hint_unlocks (team_id, stage, n, unlocked_at, expires_at, penalty_seconds) VALUES (?, ?, ?, ?, ?, ?)',
@@ -460,7 +464,6 @@ export class GameEngine {
     this.broadcastTeamState(teamId);
     this.broadcastLeaderboard();
 
-    // Schedule expire broadcast
     setTimeout(() => {
       this.broadcastToTeam(teamId, {
         type: 'hint:expire',
@@ -473,7 +476,7 @@ export class GameEngine {
       stage,
       hintNumber,
       expiresAt,
-      text: STAGE_HINTS[stage][hintNumber],
+      text: getHintContent(),
       isExpired: false
     };
   }
@@ -484,19 +487,16 @@ export class GameEngine {
 
     const now = Date.now();
 
-    // Ignore first 3s after start
     if (now - (team.startTime || 0) < 3000) {
       return { success: false, reason: 'Grace period (first 3s)' };
     }
 
-    // Rate-limit: at most one per 10s
     const last = this.lastViolationTime.get(teamId) || 0;
     if (now - last < 10000) {
       return { success: false, reason: 'Debounced within 10s' };
     }
     this.lastViolationTime.set(teamId, now);
 
-    // Record violation
     await db.run('INSERT INTO violations (team_id, at, penalty_seconds, waived) VALUES (?, ?, 120, 0)', [
       teamId,
       now
@@ -525,7 +525,6 @@ export class GameEngine {
     this.broadcastTeamState(teamId);
   }
 
-  // Stage Pad Management (e.g. Stage 1 Decode Pad: S1, S2, S3, S4)
   getStagePad(teamId, stage) {
     const key = `${teamId}:${stage}`;
     return this.stagePads.get(key) || { s1: '', s2: '', s3: '', s4: '' };
@@ -540,11 +539,31 @@ export class GameEngine {
       [teamId, stage, 'pad', JSON.stringify(pad)]
     );
 
-    // Broadcast pad update to all bound devices on team
     this.broadcastToTeam(teamId, {
       type: 'stage:pad',
       stage,
       pad
+    });
+  }
+
+  getStageWorkbench(teamId, stage) {
+    const key = `${teamId}:${stage}`;
+    return this.stageWorkbenches.get(key) || null;
+  }
+
+  async saveStageWorkbench(teamId, stage, workbench) {
+    const key = `${teamId}:${stage}`;
+    this.stageWorkbenches.set(key, workbench);
+
+    await db.run(
+      'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, ?, ?, ?)',
+      [teamId, stage, 'workbench', JSON.stringify(workbench)]
+    );
+
+    this.broadcastToTeam(teamId, {
+      type: 'stage2:workbench',
+      stage,
+      workbench
     });
   }
 
@@ -588,7 +607,6 @@ export class GameEngine {
 
     const now = Date.now();
 
-    // Mask hint texts if expired
     const sanitizedHints = {};
     for (const [stg, levels] of Object.entries(team.hintsUsed)) {
       sanitizedHints[stg] = {};
@@ -643,8 +661,6 @@ export class GameEngine {
       });
     }
 
-    // Sort: Finished teams first by finalRankTimeSeconds (asc).
-    // Unfinished teams sorted by currentStage (desc), then finalRankTimeSeconds (asc).
     entries.sort((a, b) => {
       if (a.isCompleted && !b.isCompleted) return -1;
       if (!a.isCompleted && b.isCompleted) return 1;
@@ -663,7 +679,6 @@ export class GameEngine {
     return entries.map((e, idx) => ({ ...e, rank: idx + 1 }));
   }
 
-  // Realtime Broadcasts
   broadcastAll(message) {
     const payload = JSON.stringify(message);
     for (const client of this.wsClients) {

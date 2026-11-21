@@ -37,7 +37,7 @@ On startup, the server automatically detects your network interface and prints:
 - **Bundle Size Budget:**
   - `dist/index.html`: 0.69 kB (0.42 kB gzipped)
   - `dist/assets/index.css`: 7.27 kB (2.43 kB gzipped)
-  - `dist/assets/index.js`: **89.47 kB (27.37 kB gzipped)** — *Well under the 150 KB limit!*
+  - `dist/assets/index.js`: **102.78 kB (31.07 kB gzipped)** — *Well under the strict 150 KB limit!*
 - **Offline Guarantee:** 100% offline on college LAN (zero external CDNs, Google Fonts, or remote assets)
 
 ### Server
@@ -73,6 +73,54 @@ On startup, the server automatically detects your network interface and prints:
 
 ---
 
+## 🔓 Stage 2: Multi-Layer Decryption Suite (Cryptanalyst Workbench)
+
+- **Concept:** An intercepted transmission wrapped in 3 scrambled layers. Squads use an 8-tool interactive cryptanalyst workbench to peel back the layers in order.
+- **Dynamic Team-Specific Shuffling:**
+  - 6 invertible cryptographic pipeline variants indexed dynamically by `teamId % 6`.
+  - Ensures different teams on LAN have distinct unwrapping sequences while strictly preserving solution consistency:
+    - **Variant 0:** `Base64 Decode` → `Hex Decode` → `ROT13` (Original prompt default)
+    - **Variant 1:** `Base64 Decode` → `Hex Decode` → `Atbash Mirror`
+    - **Variant 2:** `Hex Decode` → `Base64 Decode` → `ROT13`
+    - **Variant 3:** `Hex Decode` → `Base64 Decode` → `Atbash Mirror`
+    - **Variant 4:** `Base64 Decode` → `Hex Decode` → `Reverse String`
+    - **Variant 5:** `Base64 Decode` → `Hex Decode` → `Caesar +3`
+- **Target Plaintext:**
+  `ACCESS PHRASE IS AURORA. FRAGMENT TWO IS 7K2. IGNORE ZETA9.`
+- **Target Answer:** `7K2` (Fragment 2).
+- **Access Phrase:** `AURORA` (Mandatory access phrase required in Stage 3).
+- **The 8 Workbench Tools:**
+  1. **Base64 Decode:** Tolerates whitespace, handles invalid input gracefully.
+  2. **Hex Decode:** Ignores spaces and `0x`, enforces even-length byte pairs.
+  3. **ROT13:** 13-shift letter rotation.
+  4. **Atbash Mirror:** Reciprocal letter mirror (A↔Z, B↔Y).
+  5. **Reverse String:** String reversal.
+  6. **ROT5:** Modulo-10 digit rotation (+5 mod 10).
+  7. **Caesar +3:** 3-step Caesar letter advance preserving case.
+  8. **Vigenère Decrypt:** Polyalphabetic cipher decryption with key dialog (letters only).
+- **History Stack & State Controls:**
+  - Full history stack with 40-character before/after preview.
+  - **Undo:** Reverts the most recent transformation.
+  - **Reset to Payload:** Reverts back to initial transmission with confirmation dialog.
+  - **Direct Step Jump:** Tap any past step in history to jump immediately back to that state.
+- **Readability Meter (Confidence Bar):**
+  - Real-time score (0–100%) indicating how English-like the current text buffer is.
+  - Raw payload: <= 20%. Final plaintext: 100%.
+  - Color transitions from muted red/blue (< 40%) to gold (40–79%) to neon green (>= 80%).
+- **Team Notepad Nudge:**
+  - When readability reaches >= 80%, displays:
+    *"📝 Tip: write the access phrase in your Team Notepad. You will need it in Mission 3."*
+  - Includes a quick-copy button for `AURORA`.
+- **Decoy Protections:**
+  - `ZETA9`: Flagged as anomaly decoy with specific warning feedback.
+  - `AURORA`: Flagged as Mission 3 access phrase, guiding team to extract the fragment.
+  - `7X2`: Flagged as close deciphering typo.
+- **Real-Time Collaboration:**
+  - Debounced synchronization to SQLite (`PUT /api/stage/2/workbench`).
+  - Broadcasts `stage2:workbench` over WebSockets so all teammates on LAN see changes instantly without data loss.
+
+---
+
 ## 🎨 Design System Tokens
 
 Tokens are defined on `:root`:
@@ -102,7 +150,7 @@ Tokens are defined on `:root`:
 
 ## 🧪 Automated Test Suite
 
-To run all 14 automated tests:
+To run all 19 automated tests:
 ```bash
 npm test
 ```
@@ -122,3 +170,8 @@ npm test
 12. ✅ **Stage 1 Hint 1 Chart:** Validates full 15-character international Morse code chart, 30s countdown, and persistence after reload.
 13. ✅ **Stage 1 Audio Scheduler:** Mathematical verification of unit durations (0.22s unit, 0.66s dash, 0.22s gaps, 0.20s lead-in).
 14. ✅ **Stage 1 Decode Pad:** Real-time persistence and multi-device squad synchronization.
+15. ✅ **Stage 2 6-Variant Invertible Pipeline:** Pure function verification ensuring all 6 shuffled variants yield exact target plaintext.
+16. ✅ **Stage 2 Decoy Tools Robustness:** Graceful error handling for invalid Base64, odd/invalid Hex, and invalid Vigenère keys without runtime exceptions.
+17. ✅ **Stage 2 Readability Scoring Thresholds:** Confirmed <= 25% for raw payload and 100% for final recovered plaintext.
+18. ✅ **Stage 2 Answer & Decoy Handlers:** Exact decoy handling for `ZETA9`, `AURORA`, and `7X2`, with successful advancement on `7K2`.
+19. ✅ **Stage 2 Multi-Device Workbench Sync & Dynamic Hint:** SQLite persistence, WebSocket team sync, and team-specific Hint 2 pipeline clues.

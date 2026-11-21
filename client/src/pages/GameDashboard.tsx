@@ -13,8 +13,8 @@ import {
 import { useAuthoritativeTimer } from '../hooks/useAuthoritativeTimer';
 import { useAntiCheat } from '../hooks/useAntiCheat';
 import { Stage1Module } from '../components/stages/Stage1Module';
+import { Stage2Module } from '../components/stages/Stage2Module';
 import {
-  Stage2Module,
   Stage3Module,
   Stage4Module,
   Stage5Module,

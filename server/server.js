@@ -9,6 +9,7 @@ import { CONFIG } from './config/index.js';
 import { db } from './db/database.js';
 import { gameEngine } from './services/gameEngine.js';
 import { stage1Router } from './routes/stage1.js';
+import { stage2Router } from './routes/stage2.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -165,8 +166,9 @@ app.post('/api/admin/pause', async (req, res) => {
   }
 });
 
-// Stage 1 API Routes
+// Stage APIs
 app.use('/api/stage', requireTeam, stage1Router);
+app.use('/api/stage', requireTeam, stage2Router);
 
 // WebSocket Server Setup
 wss.on('connection', (ws, req) => {

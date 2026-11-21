@@ -28,6 +28,17 @@ class WSManager {
   private ws: WebSocket | null = null;
   private reconnectTimer: any = null;
   private backoff = 1000;
+  private listeners = new Map<string, Set<(data: any) => void>>();
+
+  on(type: string, cb: (data: any) => void) {
+    if (!this.listeners.has(type)) {
+      this.listeners.set(type, new Set());
+    }
+    this.listeners.get(type)!.add(cb);
+    return () => {
+      this.listeners.get(type)?.delete(cb);
+    };
+  }
 
   connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
@@ -61,6 +72,17 @@ class WSManager {
           const clientNow = Date.now();
           serverClockOffset.value = msg.serverNow - clientNow;
           isGlobalPaused.value = !!msg.isPaused;
+        }
+
+        const cbs = this.listeners.get(msg.type);
+        if (cbs) {
+          cbs.forEach((cb) => {
+            try {
+              cb(msg);
+            } catch (err) {
+              console.error('WS listener error:', err);
+            }
+          });
         }
       } catch (e) {
         console.error('WS Parse Error:', e);
