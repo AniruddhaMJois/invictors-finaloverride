@@ -222,6 +222,67 @@ On startup, the server automatically detects your network interface and prints:
 
 ---
 
+## 🔐 Master Admin Portal (`/admin`) & Coordinator Portals (`/coordinator`)
+
+### Master Admin Portal Access
+- **Hidden Access:** Zero visible links from player screens.
+- **Triggers:** Double-click or double-tap the Invictors logo in the header, or press **Alt + A**.
+- **Admin PIN:** `INVICTORS@23` (from `.env`).
+- **Security:**
+  - On success: sets short-lived signed `admin_token` cookie (httpOnly, 4 hours).
+  - On failure: CSS shake animation + "Wrong PIN".
+  - Lockout: After 5 wrong attempts within 60 seconds, access is locked for 60 seconds with live countdown.
+- **Features & Tabs:**
+  1. **Overview:**
+     - Live counters: Registered, In Progress, Finished, Time Up (>90m), Global Pause status.
+     - Global clock display and average stage metric.
+     - Visual 7-step squad stage distribution bar.
+     - **Alert Strip:** Real-time alerts for squads stuck >15m, squads with high wrong attempts (>=5), tab switch penalty spikes, and coordinator emergency calls.
+  2. **Teams:**
+     - Real-time sortable table with multi-criteria filtering (by Coordinator, Stage, Status, and search query).
+     - Clicking any squad opens the **Team Drawer**:
+       - Squad member roster with team leader crown badge.
+       - Active bound device tokens with one-click **Unbind Device** action.
+       - Full chronological event timeline (registration, submissions, hints, tab violations).
+       - Emergency action toolbar: **Waive Penalty** (-120s on tab violations), **Skip Stage** (advances squad and auto-assigns correct fragment), and **Restart Team** (dangerous action requiring exact typed confirmation of team name).
+  3. **Live Answer Key Inspector:**
+     - Protected by confirmation modal and permanently recorded in the tamper-evident audit table.
+     - 60-second auto-hide countdown ring before keys re-mask automatically.
+     - Complete answer cards: static answers, active bus lines, decoy traps, Stage 4 station answers (`9`, `1`, `X`), Stage 6 synthesis rule (`91X-7K2-HEX82D-TIBRO-NOVA#29`), and finished teams' cryptographic verification hashes.
+  4. **Hints Manager & Live Editor:**
+     - Table of all 6 stages $\times$ Hints 1 & 2 (12 hints total).
+     - Inline `<textarea>` editing with live character counter.
+     - **Save** and **Revert to Default** actions with full audit logging.
+     - Visual Morse code reference table preview for Stage 1 Hint 1.
+     - Changes take effect immediately for active squads on that stage and survive server restarts.
+  5. **Controls:**
+     - Emergency Global Pause / Resume switch.
+     - Download complete Teams CSV (Excel ready with UTF-8 BOM, solve timestamps, penalty breakdowns, and verification codes).
+  6. **Audit Log:**
+     - Filterable, searchable table of all administrative actions, key reveals, coordinator alerts, and emergency overrides.
+
+---
+
+### Coordinator Portals (`/coordinator`)
+- **Route:** `/coordinator`
+- **Authentication:** Coordinator Name + PIN:
+  - **Arun:** `ARUN#234`
+  - **Divya:** `DIVYA#567`
+  - **Kiran:** `KIRAN#890`
+  - **Pooja:** `POOJA#123`
+  - **Rakshith:** `RAKSHITH#456`
+  (Same 5-attempt / 60s lockout protection).
+- **Strict Server-Side Data Isolation:**
+  - Coordinators see ONLY the squads registered under their own name (`SELECT * FROM teams WHERE coordinator = ?`).
+  - Attempting to inspect other coordinators' squads returns HTTP 403 Forbidden.
+  - Zero access to answer keys, hints editor, or administrative overrides.
+- **Capabilities:**
+  - Summary metrics: Teams registered, On track, Stuck (>15m), Finished, Average stage.
+  - Read-only squad table and activity drawer.
+  - **"Call Master Admin":** Send instant prioritized alert notes directly to the Master Admin alert strip.
+
+---
+
 ## 🎨 Design System Tokens
 
 Tokens are defined on `:root`:
@@ -251,7 +312,7 @@ Tokens are defined on `:root`:
 
 ## 🧪 Automated Test Suite
 
-To run all 35 automated tests:
+To run all 42 automated tests:
 ```bash
 npm test
 ```
@@ -266,29 +327,36 @@ npm test
 7. ✅ **Global Pause & Resume:** Clocks freeze without losing elapsed time.
 8. ✅ **Leaderboard Sorting:** Overridden teams first by final rank time, then active teams by highest stage and lowest time.
 9. ✅ **Secret Protection:** Guarantees zero solution keys leak into client JSON payloads.
-10. ✅ **Stage 1 Content Gating:** Returns 403 Forbidden for teams that have completed or advanced past Stage 1.
-11. ✅ **Stage 1 Decoy Trap:** Identifies and counts `ZETA9` decoy submissions with customized feedback.
-12. ✅ **Stage 1 Hint 1 Chart:** Validates full 15-character international Morse code chart, 30s countdown, and persistence after reload.
-13. ✅ **Stage 1 Audio Scheduler:** Mathematical verification of unit durations (0.22s unit, 0.66s dash, 0.22s gaps, 0.20s lead-in).
-14. ✅ **Stage 1 Decode Pad:** Real-time persistence and multi-device squad synchronization.
-15. ✅ **Stage 2 6-Variant Invertible Pipeline:** Pure function verification ensuring all 6 shuffled variants yield exact target plaintext.
-16. ✅ **Stage 2 Decoy Tools Robustness:** Graceful error handling for invalid Base64, odd/invalid Hex, and invalid Vigenère keys without runtime exceptions.
-17. ✅ **Stage 2 Readability Scoring Thresholds:** Confirmed <= 25% for raw payload and 100% for final recovered plaintext.
-18. ✅ **Stage 2 Answer & Decoy Handlers:** Exact decoy handling for `ZETA9`, `AURORA`, and `7X2`, with successful advancement on `7K2`.
-19. ✅ **Stage 2 Multi-Device Workbench Sync & Dynamic Hint:** SQLite persistence, WebSocket team sync, and team-specific Hint 2 pipeline clues.
-20. ✅ **Stage 3 25+ WARDEN Engine Variations:** Comprehensive test matrix covering passing combinations, rule failures, decoy traps, meta-prompt defense, word count thresholds, and execution time (< 20ms for all 26 cases).
-21. ✅ **Stage 3 Answer Submissions:** Correct acceptance of `ORBIT` advancing to Stage 4, exact decoy penalty counting for `ZETA9` and `AURORA`.
-22. ✅ **Stage 3 Rate Limiting:** Verification of 1s cooldown and 40 messages/hour cap (HTTP 429).
-23. ✅ **Stage 3 Cross-Device Chat Sync & Persistence:** Last 30 messages survive complete server reload from SQLite.
-24. ✅ **Stage 4 Content Gating:** Returns 403 Forbidden for stations and camera image when not on Stage 4.
-25. ✅ **Stage 4 Camera Feed Generation:** Verifies valid 640x360 PNG with `ACCESS DIGIT: 1` text embedded directly in raster pixels.
-26. ✅ **Stage 4 Station Logic:** Validates Station 1 (9), Station 2 (1), Station 3 (X) and ensures wrong attempts are penalized.
-27. ✅ **Stage 4 Submission Gate:** Rejects `91X` before all 3 stations are solved with `"Solve all 3 stations first. 🛡️"`, accepts and advances to Stage 5 after all 3 are solved.
-28. ✅ **Stage 4 Cross-Device Station Sync:** Solved stations persist in SQLite `stage_data` and synchronize live over WebSockets.
-29. ✅ **Stage 5 Content Gating:** Returns 403 Forbidden when team is not on Stage 5.
-30. ✅ **Stage 5 Hex Decoding Engine:** Pure function test validating `48 45 58 38 32 44` decodes to `HEX82D`.
-31. ✅ **Stage 5 Submission & Decoy Trap:** Validates `HEX82D` acceptance and `ZETA9` decoy penalty tracking.
-32. ✅ **Stage 5 Hints:** Verifies Column 1 and ASCII conversion clues for Hint 1 and Hint 2.
-33. ✅ **Stage 6 A-Z Synthesis & Checksum:** Validates alphabetical mission sorting (C, D, H, P, S), inversion of Stage 3 (`TIBRO`), and single-digit checksum ($9+1+7+2+8+2 = 29$).
-34. ✅ **Stage 6 Victory Flow:** Validates master key `FO{91X-7K2-HEX82D-TIBRO-NOVA}#29`, clock freezing, rank calculation, and 8-character verification hash.
-35. ✅ **Stage 6 Hints:** Confirms mission ordering and digit summation guidance.
+10. ✅ **Admin PIN Authentication & 5-Failure Lockout:** Validates signed token generation, cookie storage, and 60s lockout after 5 failed tries.
+11. ✅ **Coordinator Authentication & Strict Partitioning:** Validates coordinator token and proves server returns ONLY squads assigned to that coordinator.
+12. ✅ **Live Hints Manager:** Validates inline hint update to DB and in-memory cache, immediate push to active squads, persistence across reload, and default revert.
+13. ✅ **Admin Emergency Actions:** Verifies Waive Penalty (-120s), Unbind Device, Skip Stage, and Restart Team (with typed squad name confirmation).
+14. ✅ **Live Answer Key Inspector & Audit Trail:** Verifies authorized answer reveals, checksum formula, finished verification codes, and tamper-evident audit logging.
+15. ✅ **CSV Export Generation:** Verifies formatted CSV generation with UTF-8 BOM, roster, solve times, penalty breakdown, and verification hashes.
+16. ✅ **Coordinator "Call Admin" Alerts:** Verifies instant alert dispatch from coordinator portal to Master Admin alert strip and dismissal.
+17. ✅ **Stage 1 Content Gating:** Returns 403 Forbidden for teams that have completed or advanced past Stage 1.
+18. ✅ **Stage 1 Decoy Trap:** Identifies and counts `ZETA9` decoy submissions with customized feedback.
+19. ✅ **Stage 1 Hint 1 Chart:** Validates full 15-character international Morse code chart, 30s countdown, and persistence after reload.
+20. ✅ **Stage 1 Audio Scheduler:** Mathematical verification of unit durations (0.22s unit, 0.66s dash, 0.22s gaps, 0.20s lead-in).
+21. ✅ **Stage 1 Decode Pad:** Real-time persistence and multi-device squad synchronization.
+22. ✅ **Stage 2 6-Variant Invertible Pipeline:** Pure function verification ensuring all 6 shuffled variants yield exact target plaintext.
+23. ✅ **Stage 2 Decoy Tools Robustness:** Graceful error handling for invalid Base64, odd/invalid Hex, and invalid Vigenère keys without runtime exceptions.
+24. ✅ **Stage 2 Readability Scoring Thresholds:** Confirmed <= 25% for raw payload and 100% for final recovered plaintext.
+25. ✅ **Stage 2 Answer & Decoy Handlers:** Exact decoy handling for `ZETA9`, `AURORA`, and `7X2`, with successful advancement on `7K2`.
+26. ✅ **Stage 2 Multi-Device Workbench Sync & Dynamic Hint:** SQLite persistence, WebSocket team sync, and team-specific Hint 2 pipeline clues.
+27. ✅ **Stage 3 25+ WARDEN Engine Variations:** Comprehensive test matrix covering passing combinations, rule failures, decoy traps, meta-prompt defense, word count thresholds, and execution time (< 20ms for all 26 cases).
+28. ✅ **Stage 3 Answer Submissions:** Correct acceptance of `ORBIT` advancing to Stage 4, exact decoy penalty counting for `ZETA9` and `AURORA`.
+29. ✅ **Stage 3 Rate Limiting:** Verification of 1s cooldown and 40 messages/hour cap (HTTP 429).
+30. ✅ **Stage 3 Cross-Device Chat Sync & Persistence:** Last 30 messages survive complete server reload from SQLite.
+31. ✅ **Stage 4 Content Gating:** Returns 403 Forbidden for stations and camera image when not on Stage 4.
+32. ✅ **Stage 4 Camera Feed Generation:** Verifies valid 640x360 PNG with `ACCESS DIGIT: 1` text embedded directly in raster pixels.
+33. ✅ **Stage 4 Station Logic:** Validates Station 1 (9), Station 2 (1), Station 3 (X) and ensures wrong attempts are penalized.
+34. ✅ **Stage 4 Submission Gate:** Rejects `91X` before all 3 stations are solved with `"Solve all 3 stations first. 🛡️"`, accepts and advances to Stage 5 after all 3 are solved.
+35. ✅ **Stage 4 Cross-Device Station Sync:** Solved stations persist in SQLite `stage_data` and synchronize live over WebSockets.
+36. ✅ **Stage 5 Content Gating:** Returns 403 Forbidden when team is not on Stage 5.
+37. ✅ **Stage 5 Hex Decoding Engine:** Pure function test validating `48 45 58 38 32 44` decodes to `HEX82D`.
+38. ✅ **Stage 5 Submission & Decoy Trap:** Validates `HEX82D` acceptance and `ZETA9` decoy penalty tracking.
+39. ✅ **Stage 5 Hints:** Verifies Column 1 and ASCII conversion clues for Hint 1 and Hint 2.
+40. ✅ **Stage 6 A-Z Synthesis & Checksum:** Validates alphabetical mission sorting (C, D, H, P, S), inversion of Stage 3 (`TIBRO`), and single-digit checksum ($9+1+7+2+8+2 = 29$).
+41. ✅ **Stage 6 Victory Flow:** Validates master key `FO{91X-7K2-HEX82D-TIBRO-NOVA}#29`, clock freezing, rank calculation, and 8-character verification hash.
+42. ✅ **Stage 6 Hints:** Confirms mission ordering and digit summation guidance.

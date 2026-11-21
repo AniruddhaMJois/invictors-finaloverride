@@ -14,6 +14,9 @@ import { stage3Router } from './routes/stage3.js';
 import { stage4Router } from './routes/stage4.js';
 import { stage5Router } from './routes/stage5.js';
 import { stage6Router } from './routes/stage6.js';
+import { adminRouter } from './routes/admin.js';
+import { coordinatorRouter } from './routes/coordinator.js';
+import { verifyAdminToken, verifyCoordinatorToken } from './services/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -156,19 +159,9 @@ app.get('/api/leaderboard', (req, res) => {
   });
 });
 
-// Admin toggle pause endpoint
-app.post('/api/admin/pause', async (req, res) => {
-  try {
-    const { pin, pause } = req.body;
-    if (pin !== CONFIG.ADMIN_PIN) {
-      return res.status(401).json({ error: 'Unauthorized PIN' });
-    }
-    await gameEngine.togglePause(Boolean(pause));
-    res.json({ paused: gameEngine.globalPaused });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+// Admin & Coordinator APIs
+app.use('/api/admin', adminRouter);
+app.use('/api/coordinator', coordinatorRouter);
 
 // Stage APIs
 app.use('/api/stage', requireTeam, stage1Router);
@@ -191,11 +184,12 @@ app.post('/api/stage4/station', requireTeam, async (req, res) => {
 
 // WebSocket Server Setup
 wss.on('connection', (ws, req) => {
-  // Parse cookies from request headers
   const cookieHeader = req.headers.cookie || '';
-  const match = cookieHeader.match(/device_token=([^;]+)/);
-  const token = match ? decodeURIComponent(match[1]) : null;
+  const url = new URL(req.url, `http://${req.headers.host}`);
 
+  // Team authentication
+  const match = cookieHeader.match(/device_token=([^;]+)/);
+  const token = match ? decodeURIComponent(match[1]) : url.searchParams.get('token');
   if (token) {
     const session = gameEngine.verifyDeviceToken(token);
     if (session) {
@@ -204,14 +198,24 @@ wss.on('connection', (ws, req) => {
     }
   }
 
-  // Handle URL query for token fallback
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const qToken = url.searchParams.get('token');
-  if (!ws.teamId && qToken) {
-    const session = gameEngine.verifyDeviceToken(qToken);
-    if (session) {
-      ws.teamId = session.teamId;
-      ws.memberId = session.memberId;
+  // Admin authentication
+  const adminMatch = cookieHeader.match(/admin_token=([^;]+)/);
+  const aToken = adminMatch ? decodeURIComponent(adminMatch[1]) : url.searchParams.get('admin_token');
+  if (aToken) {
+    const adminSession = verifyAdminToken(aToken);
+    if (adminSession) {
+      ws.isAdmin = true;
+    }
+  }
+
+  // Coordinator authentication
+  const coordMatch = cookieHeader.match(/coord_token=([^;]+)/);
+  const cToken = coordMatch ? decodeURIComponent(coordMatch[1]) : url.searchParams.get('coord_token');
+  if (cToken) {
+    const coordSession = verifyCoordinatorToken(cToken);
+    if (coordSession) {
+      ws.isCoordinator = true;
+      ws.coordinatorName = coordSession.coordinator;
     }
   }
 
@@ -233,6 +237,24 @@ wss.on('connection', (ws, req) => {
     }
     const pad = gameEngine.getStagePad(ws.teamId, 1);
     ws.send(JSON.stringify({ type: 'stage:pad', stage: 1, pad }));
+  }
+
+  if (ws.isAdmin) {
+    ws.send(
+      JSON.stringify({
+        type: 'admin:update',
+        overview: gameEngine.getAdminOverview()
+      })
+    );
+  }
+
+  if (ws.isCoordinator && ws.coordinatorName) {
+    ws.send(
+      JSON.stringify({
+        type: 'coord:update',
+        teams: gameEngine.getCoordinatorTeams(ws.coordinatorName)
+      })
+    );
   }
 
   ws.on('close', () => {

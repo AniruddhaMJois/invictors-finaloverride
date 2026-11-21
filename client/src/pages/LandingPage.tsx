@@ -8,11 +8,13 @@ import { teamState, showToast } from '../store';
 interface LandingPageProps {
   onStartGame: () => void;
   onOpenLeaderboard: () => void;
+  onAdminClick?: () => void;
 }
 
 export const LandingPage: FunctionalComponent<LandingPageProps> = ({
   onStartGame,
-  onOpenLeaderboard
+  onOpenLeaderboard,
+  onAdminClick
 }) => {
   // Mode: 'register' | 'resume'
   const [mode, setMode] = useState<'register' | 'resume'>('register');
@@ -132,7 +134,7 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Header />
+      <Header onAdminClick={onAdminClick} />
 
       <main style={{ flex: 1, maxWidth: '980px', margin: '0 auto', padding: '24px 16px', width: '100%' }}>
         {/* Story & Rules Grid */}

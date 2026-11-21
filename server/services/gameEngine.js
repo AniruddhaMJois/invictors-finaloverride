@@ -20,6 +20,8 @@ export class GameEngine {
     this.globalPausedAt = 0;
     this.globalPausedAccumMs = 0;
     this.wsClients = new Set(); // WebSocket clients
+    this.hints = {}; // stage -> { 1: text, 2: text }
+    this.adminAlerts = []; // list of active alerts from coordinators
   }
 
   async loadFromDb() {
@@ -31,6 +33,27 @@ export class GameEngine {
     this.globalPaused = pausedRow ? pausedRow.value === '1' : false;
     this.globalPausedAt = pausedAtRow ? parseInt(pausedAtRow.value, 10) : 0;
     this.globalPausedAccumMs = pausedAccumRow ? parseInt(pausedAccumRow.value, 10) : 0;
+
+    // Load and seed hints
+    this.hints = {};
+    const hintRows = await db.all('SELECT stage, n, text FROM hints');
+    if (hintRows.length === 0) {
+      for (const [stg, levels] of Object.entries(STAGE_HINTS)) {
+        for (const [lvl, text] of Object.entries(levels)) {
+          await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [
+            parseInt(stg, 10),
+            parseInt(lvl, 10),
+            text
+          ]);
+        }
+      }
+      this.hints = JSON.parse(JSON.stringify(STAGE_HINTS));
+    } else {
+      for (const h of hintRows) {
+        if (!this.hints[h.stage]) this.hints[h.stage] = {};
+        this.hints[h.stage][h.n] = h.text;
+      }
+    }
 
     // Load devices
     const deviceRows = await db.all('SELECT token, team_id, member_id FROM devices');
@@ -236,6 +259,7 @@ export class GameEngine {
 
     this.teams.set(teamId, teamState);
     this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
 
     return { team: teamState, token: leaderToken };
   }
@@ -374,6 +398,7 @@ export class GameEngine {
 
       this.broadcastTeamState(teamId);
       this.broadcastLeaderboard();
+      this.broadcastAdminUpdate();
 
       return {
         correct: true,
@@ -399,6 +424,7 @@ export class GameEngine {
 
       this.broadcastTeamState(teamId);
       this.broadcastLeaderboard();
+      this.broadcastAdminUpdate();
 
       let message = 'Not quite, try again 🙂';
       if (isZeta9Decoy) {
@@ -447,7 +473,7 @@ export class GameEngine {
         const variant = getTeamVariant(teamId);
         if (variant && variant.hintClue) return variant.hintClue;
       }
-      return STAGE_HINTS[stage][hintNumber];
+      return this.hints[stage]?.[hintNumber] || STAGE_HINTS[stage][hintNumber];
     };
 
     if (existing) {
@@ -489,6 +515,7 @@ export class GameEngine {
 
     this.broadcastTeamState(teamId);
     this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
 
     setTimeout(() => {
       this.broadcastToTeam(teamId, {
@@ -533,6 +560,7 @@ export class GameEngine {
 
     this.broadcastTeamState(teamId);
     this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
 
     return { success: true, penaltyAdded: 120 };
   }
@@ -790,6 +818,7 @@ export class GameEngine {
       paused: this.globalPaused,
       pausedAt: this.globalPausedAt
     });
+    this.broadcastAdminUpdate();
   }
 
   getEffectiveElapsedSeconds(team) {
@@ -816,7 +845,7 @@ export class GameEngine {
         sanitizedHints[stg][lvl] = {
           unlockedAt: h.unlockedAt,
           expiresAt: h.expiresAt,
-          text: isExpired ? null : STAGE_HINTS[stg]?.[lvl] || null
+          text: isExpired ? null : this.hints[stg]?.[lvl] || STAGE_HINTS[stg]?.[lvl] || null
         };
       }
     }
@@ -913,6 +942,556 @@ export class GameEngine {
       type: 'leaderboard:update',
       leaderboard
     });
+  }
+
+  broadcastAdmin(message) {
+    const payload = JSON.stringify(message);
+    for (const client of this.wsClients) {
+      if (client.readyState === 1 && client.isAdmin) {
+        client.send(payload);
+      }
+    }
+  }
+
+  broadcastCoordinator(coordName, message) {
+    const payload = JSON.stringify(message);
+    for (const client of this.wsClients) {
+      if (
+        client.readyState === 1 &&
+        client.isCoordinator &&
+        (client.coordinatorName || '').toLowerCase() === (coordName || '').toLowerCase()
+      ) {
+        client.send(payload);
+      }
+    }
+  }
+
+  broadcastAdminUpdate() {
+    this.broadcastAdmin({
+      type: 'admin:update',
+      overview: this.getAdminOverview()
+    });
+    const coordinators = ['Arun', 'Divya', 'Kiran', 'Pooja', 'Rakshith'];
+    for (const coord of coordinators) {
+      this.broadcastCoordinator(coord, {
+        type: 'coord:update',
+        teams: this.getCoordinatorTeams(coord)
+      });
+    }
+  }
+
+  async logAudit(actor, action, detail = '') {
+    const now = Date.now();
+    await db.run('INSERT INTO audit (at, actor, action, detail) VALUES (?, ?, ?, ?)', [
+      now,
+      actor,
+      action,
+      typeof detail === 'string' ? detail : JSON.stringify(detail)
+    ]);
+  }
+
+  getHints() {
+    return JSON.parse(JSON.stringify(this.hints));
+  }
+
+  async updateHint(stage, n, text, actor = 'Admin') {
+    const stg = parseInt(stage, 10);
+    const num = parseInt(n, 10);
+    const cleanText = (text || '').trim();
+    if (!cleanText) throw new Error('Hint text cannot be empty.');
+
+    if (!this.hints[stg]) this.hints[stg] = {};
+    this.hints[stg][num] = cleanText;
+
+    await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [stg, num, cleanText]);
+    await this.logAudit(actor, 'edit_hint', { stage: stg, n: num, textLength: cleanText.length });
+
+    // Update active teams playing this stage
+    for (const team of this.teams.values()) {
+      if (team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
+        this.broadcastTeamState(team.id);
+      }
+    }
+    this.broadcastAdminUpdate();
+    return this.hints;
+  }
+
+  async revertHint(stage, n, actor = 'Admin') {
+    const stg = parseInt(stage, 10);
+    const num = parseInt(n, 10);
+    const original = STAGE_HINTS[stg]?.[num];
+    if (!original) throw new Error('Default hint not found.');
+
+    if (!this.hints[stg]) this.hints[stg] = {};
+    this.hints[stg][num] = original;
+
+    await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [stg, num, original]);
+    await this.logAudit(actor, 'revert_hint', { stage: stg, n: num });
+
+    for (const team of this.teams.values()) {
+      if (team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
+        this.broadcastTeamState(team.id);
+      }
+    }
+    this.broadcastAdminUpdate();
+    return this.hints;
+  }
+
+  getAdminOverview() {
+    const now = Date.now();
+    let totalRegistered = this.teams.size;
+    let inProgress = 0;
+    let finished = 0;
+    let timeUp = 0;
+    const stageDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, finished: 0 };
+    let stageSum = 0;
+    const alerts = [...this.adminAlerts];
+
+    for (const team of this.teams.values()) {
+      const elapsed = this.getEffectiveElapsedSeconds(team);
+      if (team.isCompleted) {
+        finished += 1;
+        stageDistribution.finished += 1;
+        stageSum += 6;
+      } else {
+        stageSum += team.currentStage;
+        if (elapsed > CONFIG.TIME_CAP_SECONDS) {
+          timeUp += 1;
+        } else {
+          inProgress += 1;
+        }
+        if (stageDistribution[team.currentStage] !== undefined) {
+          stageDistribution[team.currentStage] += 1;
+        }
+
+        // Alert checks
+        // 1. Stuck on current stage > 15 mins (900s)
+        if (elapsed > 900) {
+          alerts.push({
+            id: `stuck_${team.id}`,
+            type: 'stuck',
+            teamId: team.id,
+            teamName: team.teamName,
+            coordinator: team.coordinator,
+            stage: team.currentStage,
+            message: `Squad "${team.teamName}" on Stage ${team.currentStage} for >15 min (${Math.floor(elapsed / 60)}m)`
+          });
+        }
+
+        // 2. High wrong attempts
+        if (team.wrongAttemptsCurrentStage >= 5) {
+          alerts.push({
+            id: `wrong_${team.id}`,
+            type: 'wrong_attempts',
+            teamId: team.id,
+            teamName: team.teamName,
+            coordinator: team.coordinator,
+            stage: team.currentStage,
+            message: `Squad "${team.teamName}" has ${team.wrongAttemptsCurrentStage} failed submissions on Stage ${team.currentStage}`
+          });
+        }
+
+        // 3. Tab switch spikes (>= 3 violations / 360s)
+        if (team.penaltyBreakdown.tabSwitches >= 360) {
+          alerts.push({
+            id: `tab_${team.id}`,
+            type: 'tab_switches',
+            teamId: team.id,
+            teamName: team.teamName,
+            coordinator: team.coordinator,
+            stage: team.currentStage,
+            message: `Squad "${team.teamName}" has incurred ${team.penaltyBreakdown.tabSwitches / 60}m tab-switch penalties`
+          });
+        }
+      }
+    }
+
+    const avgStage = totalRegistered > 0 ? (stageSum / totalRegistered).toFixed(1) : '1.0';
+
+    return {
+      counters: {
+        registered: totalRegistered,
+        inProgress,
+        finished,
+        timeUp,
+        paused: this.globalPaused
+      },
+      globalClock: {
+        serverNow: now,
+        isPaused: this.globalPaused,
+        pausedAt: this.globalPausedAt,
+        timeCapSeconds: CONFIG.TIME_CAP_SECONDS
+      },
+      averageStage: avgStage,
+      stageDistribution,
+      alerts
+    };
+  }
+
+  getAdminTeams() {
+    const list = [];
+    for (const team of this.teams.values()) {
+      const elapsedSeconds = this.getEffectiveElapsedSeconds(team);
+      const finalTimeSeconds = elapsedSeconds + team.totalPenaltySeconds;
+      let status = 'in_progress';
+      if (team.isCompleted) status = 'finished';
+      else if (elapsedSeconds > CONFIG.TIME_CAP_SECONDS) status = 'time_up';
+      else if (elapsedSeconds > 900) status = 'stuck';
+
+      list.push({
+        id: team.id,
+        name: team.teamName,
+        coordinator: team.coordinator,
+        teamPin: team.teamPin,
+        currentStage: team.currentStage,
+        isCompleted: team.isCompleted,
+        startTime: team.startTime,
+        endTime: team.endTime,
+        elapsedSeconds,
+        penaltySeconds: team.totalPenaltySeconds,
+        finalTimeSeconds,
+        penaltyBreakdown: team.penaltyBreakdown,
+        wrongAttemptsCurrentStage: team.wrongAttemptsCurrentStage,
+        devicesCount: team.boundDevicesCount,
+        members: team.members,
+        status,
+        verificationCode: team.verificationCode
+      });
+    }
+    return list;
+  }
+
+  getCoordinatorTeams(coordinatorName) {
+    const all = this.getAdminTeams();
+    const clean = (coordinatorName || '').trim().toLowerCase();
+    return all.filter((t) => (t.coordinator || '').toLowerCase() === clean);
+  }
+
+  async getTeamTimeline(teamId) {
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+
+    const events = [];
+    if (team.startTime) {
+      events.push({
+        type: 'registered',
+        title: 'Team Registered & Started',
+        timestamp: team.startTime,
+        detail: `Squad registered under Coordinator ${team.coordinator}`
+      });
+    }
+
+    const progressRows = await db.all('SELECT stage, fragment, solved_at, wrong_attempts FROM progress WHERE team_id = ?', [teamId]);
+    for (const p of progressRows) {
+      events.push({
+        type: 'stage_complete',
+        title: `Stage ${p.stage} Completed`,
+        timestamp: p.solved_at,
+        detail: `Solved with fragment "${p.fragment}". Wrong attempts: ${p.wrong_attempts}`
+      });
+    }
+
+    const hintRows = await db.all('SELECT stage, n, unlocked_at, penalty_seconds FROM hint_unlocks WHERE team_id = ?', [teamId]);
+    for (const h of hintRows) {
+      events.push({
+        type: 'hint_unlocked',
+        title: `Stage ${h.stage} Hint ${h.n} Unlocked`,
+        timestamp: h.unlocked_at,
+        detail: `Penalty added: +${h.penalty_seconds / 60}m (${h.penalty_seconds}s)`
+      });
+    }
+
+    const violationRows = await db.all('SELECT id, at, penalty_seconds, waived FROM violations WHERE team_id = ?', [teamId]);
+    for (const v of violationRows) {
+      events.push({
+        id: v.id,
+        type: 'violation',
+        title: `Tab-Switch Violation (${v.waived ? 'WAIVED' : 'ACTIVE'})`,
+        timestamp: v.at,
+        detail: `Penalty: +${v.penalty_seconds}s`,
+        waived: !!v.waived,
+        canWaive: !v.waived
+      });
+    }
+
+    const subRows = await db.all('SELECT stage, answer, at, ok FROM submissions WHERE team_id = ?', [teamId]);
+    for (const s of subRows) {
+      events.push({
+        type: 'submission',
+        title: `Stage ${s.stage} Submission: "${s.answer}"`,
+        timestamp: s.at,
+        detail: s.ok ? 'Result: CORRECT ✅' : 'Result: INCORRECT ❌',
+        ok: !!s.ok
+      });
+    }
+
+    if (team.isCompleted && team.endTime) {
+      events.push({
+        type: 'victory',
+        title: 'Game Completed! FINAL OVERRIDE',
+        timestamp: team.endTime,
+        detail: `Verification Code: ${team.verificationCode || 'VERIFIED'}`
+      });
+    }
+
+    events.sort((a, b) => a.timestamp - b.timestamp);
+
+    const boundDevices = await db.all('SELECT token, member_id, bound_at FROM devices WHERE team_id = ?', [teamId]);
+    const devices = boundDevices.map((d) => {
+      const m = team.members.find((x) => x.id === d.member_id);
+      return {
+        token: d.token,
+        memberName: m ? m.name : 'Squad Member',
+        boundAt: d.bound_at
+      };
+    });
+
+    return {
+      team: {
+        id: team.id,
+        name: team.teamName,
+        coordinator: team.coordinator,
+        currentStage: team.currentStage,
+        isCompleted: team.isCompleted,
+        members: team.members,
+        totalPenaltySeconds: team.totalPenaltySeconds,
+        penaltyBreakdown: team.penaltyBreakdown,
+        verificationCode: team.verificationCode
+      },
+      devices,
+      events
+    };
+  }
+
+  async waivePenalty(teamId, violationId, actor = 'Admin') {
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+
+    const vId = parseInt(violationId, 10);
+    const v = await db.get('SELECT * FROM violations WHERE id = ? AND team_id = ?', [vId, teamId]);
+    if (!v) throw new Error('Violation record not found.');
+    if (v.waived) throw new Error('Violation is already waived.');
+
+    const penaltyToWaive = v.penalty_seconds || 120;
+    await db.run('UPDATE violations SET waived = 1 WHERE id = ?', [vId]);
+
+    team.penaltyBreakdown.tabSwitches = Math.max(0, team.penaltyBreakdown.tabSwitches - penaltyToWaive);
+    team.totalPenaltySeconds = Math.max(0, team.totalPenaltySeconds - penaltyToWaive);
+
+    await this.logAudit(actor, 'waive_penalty', { teamId, violationId: vId, waivedSeconds: penaltyToWaive });
+    this.broadcastTeamState(teamId);
+    this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
+    this.broadcastAdminUpdate();
+    return { success: true, waivedSeconds: penaltyToWaive };
+  }
+
+  async unbindDevice(token, actor = 'Admin') {
+    if (!token) throw new Error('Token required.');
+    const d = await db.get('SELECT * FROM devices WHERE token = ?', [token]);
+    if (!d) throw new Error('Device binding not found.');
+
+    await db.run('DELETE FROM devices WHERE token = ?', [token]);
+    this.tokens.delete(token);
+
+    const team = this.teams.get(d.team_id);
+    if (team) {
+      const boundDevices = await db.all('SELECT token FROM devices WHERE team_id = ?', [team.id]);
+      team.boundDevicesCount = boundDevices.length;
+      this.broadcastTeamState(team.id);
+    }
+
+    await this.logAudit(actor, 'unbind_device', { token: token.substring(0, 16) + '...', teamId: d.team_id });
+    this.broadcastAdminUpdate();
+    return { success: true };
+  }
+
+  async skipStage(teamId, actor = 'Admin') {
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+    if (team.isCompleted) throw new Error('Team has already completed the game.');
+
+    const current = team.currentStage;
+    const fragment = STAGE_ANSWERS[current];
+    const now = Date.now();
+
+    await db.run(
+      'INSERT OR REPLACE INTO progress (team_id, stage, fragment, solved_at, wrong_attempts) VALUES (?, ?, ?, ?, ?)',
+      [teamId, current, fragment, now, team.wrongAttemptsCurrentStage]
+    );
+
+    team.fragments[current] = fragment;
+    team.wrongAttemptsCurrentStage = 0;
+
+    if (current === 6) {
+      team.isCompleted = true;
+      team.endTime = now;
+      team.verificationCode = this.calculateVerificationCode(team.teamName, team.startTime, now);
+      await db.run('UPDATE teams SET is_completed = 1, end_time = ?, current_stage = 6 WHERE id = ?', [now, teamId]);
+    } else {
+      team.currentStage = current + 1;
+      await db.run('UPDATE teams SET current_stage = ? WHERE id = ?', [team.currentStage, teamId]);
+    }
+
+    await this.logAudit(actor, 'skip_stage', { teamId, fromStage: current, toStage: team.currentStage });
+    this.broadcastTeamState(teamId);
+    this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
+    this.broadcastAdminUpdate();
+    return { success: true, nextStage: team.currentStage, isCompleted: team.isCompleted };
+  }
+
+  async restartTeam(teamId, confirmName, actor = 'Admin') {
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+
+    if ((confirmName || '').trim().toLowerCase() !== team.teamName.trim().toLowerCase()) {
+      throw new Error(`Confirmation mismatch: type "${team.teamName}" exactly to confirm restart.`);
+    }
+
+    const now = Date.now();
+    await db.run('DELETE FROM progress WHERE team_id = ?', [teamId]);
+    await db.run('DELETE FROM hint_unlocks WHERE team_id = ?', [teamId]);
+    await db.run('DELETE FROM violations WHERE team_id = ?', [teamId]);
+    await db.run('DELETE FROM submissions WHERE team_id = ?', [teamId]);
+    await db.run('DELETE FROM stage_data WHERE team_id = ?', [teamId]);
+    await db.run('UPDATE notes SET text = "" WHERE team_id = ?', [teamId]);
+
+    await db.run(
+      'UPDATE teams SET current_stage = 1, is_completed = 0, start_time = ?, end_time = NULL WHERE id = ?',
+      [now, teamId]
+    );
+
+    team.currentStage = 1;
+    team.isCompleted = false;
+    team.startTime = now;
+    team.endTime = null;
+    team.totalPenaltySeconds = 0;
+    team.penaltyBreakdown = { hints: 0, tabSwitches: 0, wrongAttempts: 0 };
+    team.wrongAttemptsCurrentStage = 0;
+    team.fragments = {};
+    team.hintsUsed = {};
+    team.notepadText = '';
+    team.verificationCode = undefined;
+
+    // Reset memory stage caches
+    for (let s = 1; s <= 6; s++) {
+      this.stagePads.delete(`${teamId}:${s}`);
+      this.stageWorkbenches.delete(`${teamId}:${s}`);
+    }
+    this.stageChats.delete(teamId);
+    this.stage4Stations.delete(teamId);
+
+    await this.logAudit(actor, 'restart_team', { teamId, teamName: team.teamName });
+    this.broadcastTeamState(teamId);
+    this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
+    this.broadcastAdminUpdate();
+    return { success: true };
+  }
+
+  async addCoordinatorAlert({ coordinator, teamId, message }) {
+    const team = this.teams.get(teamId);
+    const alert = {
+      id: `alert_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      type: 'coordinator_call',
+      coordinator,
+      teamId: teamId || null,
+      teamName: team ? team.teamName : 'General Venue Call',
+      message: (message || '').trim() || 'Assistance requested by coordinator.',
+      at: Date.now()
+    };
+
+    this.adminAlerts.unshift(alert);
+    if (this.adminAlerts.length > 50) this.adminAlerts.pop();
+
+    await this.logAudit(`Coordinator: ${coordinator}`, 'call_admin', alert);
+    this.broadcastAdmin({ type: 'admin:alert', alert });
+    this.broadcastAdminUpdate();
+    return alert;
+  }
+
+  dismissAdminAlert(alertId) {
+    this.adminAlerts = this.adminAlerts.filter((a) => a.id !== alertId);
+    this.broadcastAdminUpdate();
+  }
+
+  async getAuditLog({ limit = 100, action = null, actor = null } = {}) {
+    let sql = 'SELECT * FROM audit WHERE 1=1';
+    const params = [];
+    if (action) {
+      sql += ' AND action = ?';
+      params.push(action);
+    }
+    if (actor) {
+      sql += ' AND actor LIKE ?';
+      params.push(`%${actor}%`);
+    }
+    sql += ' ORDER BY at DESC LIMIT ?';
+    params.push(parseInt(limit, 10) || 100);
+
+    return await db.all(sql, params);
+  }
+
+  generateCsvExport() {
+    const rows = [];
+    rows.push([
+      'Team ID',
+      'Team Name',
+      'Coordinator',
+      'Leader',
+      'Members',
+      'Current Stage',
+      'Status',
+      'Elapsed (s)',
+      'Elapsed (mm:ss)',
+      'Hint Penalties (s)',
+      'Tab Penalties (s)',
+      'Wrong Attempt Penalties (s)',
+      'Total Penalty (s)',
+      'Final Total Time (s)',
+      'Final Total Time (mm:ss)',
+      'Verification Hash'
+    ]);
+
+    for (const team of this.teams.values()) {
+      const elapsed = this.getEffectiveElapsedSeconds(team);
+      const totalTime = elapsed + team.totalPenaltySeconds;
+      const leader = team.members.find((m) => m.isLeader)?.name || team.members[0]?.name || '';
+      const memberNames = team.members.map((m) => m.name).join('; ');
+      const status = team.isCompleted
+        ? 'COMPLETED'
+        : elapsed > CONFIG.TIME_CAP_SECONDS
+        ? 'TIME_UP'
+        : 'IN_PROGRESS';
+
+      const fmtMmSs = (sec) => {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}m ${s}s`;
+      };
+
+      rows.push([
+        team.id,
+        `"${team.teamName.replace(/"/g, '""')}"`,
+        `"${team.coordinator}"`,
+        `"${leader.replace(/"/g, '""')}"`,
+        `"${memberNames.replace(/"/g, '""')}"`,
+        team.isCompleted ? 'Finished (6/6)' : `Stage ${team.currentStage}`,
+        status,
+        elapsed,
+        `"${fmtMmSs(elapsed)}"`,
+        team.penaltyBreakdown.hints,
+        team.penaltyBreakdown.tabSwitches,
+        team.penaltyBreakdown.wrongAttempts,
+        team.totalPenaltySeconds,
+        totalTime,
+        `"${fmtMmSs(totalTime)}"`,
+        `"${team.verificationCode || 'N/A'}"`
+      ]);
+    }
+
+    return '\uFEFF' + rows.map((r) => r.join(',')).join('\r\n');
   }
 }
 

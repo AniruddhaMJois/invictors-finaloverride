@@ -119,20 +119,31 @@ export const InvictorsLogo: FunctionalComponent<LogoProps> = ({
   className = '',
   onClick,
   onDoubleClick
-}) => (
-  <div
-    className={`invictors-logo-wrap ${className}`}
-    style={{
-      width: `${size}px`,
-      height: `${size}px`,
-      cursor: 'pointer',
-      display: 'inline-block',
-      userSelect: 'none'
-    }}
-    onClick={onClick}
-    onDblClick={onDoubleClick}
-    title="Invictors Club VVCE (Double-click for Admin Access)"
-  >
+}) => {
+  let lastTap = 0;
+  const handleTouchEnd = () => {
+    const now = Date.now();
+    if (now - lastTap < 350) {
+      if (onDoubleClick) onDoubleClick();
+    }
+    lastTap = now;
+  };
+
+  return (
+    <div
+      className={`invictors-logo-wrap ${className}`}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        cursor: 'pointer',
+        display: 'inline-block',
+        userSelect: 'none'
+      }}
+      onClick={onClick}
+      onDblClick={onDoubleClick}
+      onTouchEnd={handleTouchEnd}
+      title="Invictors Club VVCE"
+    >
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ display: 'block' }}>
       <defs>
         <radialGradient id="invGoldGlow" cx="50%" cy="50%" r="50%">
@@ -169,4 +180,5 @@ export const InvictorsLogo: FunctionalComponent<LogoProps> = ({
       </text>
     </svg>
   </div>
-);
+  );
+};
