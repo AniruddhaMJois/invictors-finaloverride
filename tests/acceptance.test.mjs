@@ -200,7 +200,11 @@ test('6. Sequential stage progression & Final Victory Key', async () => {
   assert.equal(r3.correct, true);
   assert.equal(r3.nextStage, 4);
 
-  // Stage 4: 91X
+  // Stage 4: Solve 3 stations, then submit 91X
+  await gameEngine.checkStage4Station(reg.team.id, 1, '9');
+  await gameEngine.checkStage4Station(reg.team.id, 2, '1');
+  await gameEngine.checkStage4Station(reg.team.id, 3, 'X');
+
   await new Promise((r) => setTimeout(r, 1050));
   const r4 = await gameEngine.submitAnswer(reg.team.id, 4, '91X');
   assert.equal(r4.correct, true);

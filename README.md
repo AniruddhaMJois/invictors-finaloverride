@@ -36,8 +36,8 @@ On startup, the server automatically detects your network interface and prints:
 - **Design System:** Pure CSS custom properties (no heavy external UI libraries)
 - **Bundle Size Budget:**
   - `dist/index.html`: 0.69 kB (0.42 kB gzipped)
-  - `dist/assets/index.css`: 7.27 kB (2.43 kB gzipped)
-  - `dist/assets/index.js`: **111.99 kB (33.59 kB gzipped)** — *Well under the strict 150 KB limit!*
+  - `dist/assets/index.css`: 7.41 kB (2.47 kB gzipped)
+  - `dist/assets/index.js`: **125.06 kB (36.01 kB gzipped)** — *Well under the strict 150 KB limit!*
 - **Offline Guarantee:** 100% offline on college LAN (zero external CDNs, Google Fonts, or remote assets)
 
 ### Server
@@ -149,6 +149,33 @@ On startup, the server automatically detects your network interface and prints:
 
 ---
 
+## 🚩 Stage 4: CTF Challenges (🛡️ Security Control Room)
+
+- **Concept:** A multi-station physical & digital security investigation. Teams act as security guards examining a breached vault gateway across 3 evidence stations.
+- **The Three Evidence Stations:**
+  1. **Station 1 (📋 Access Log):**
+     - Monospace access log table showing 10 time-stamped door events.
+     - 9 events are `GRANTED` and one anomalous event at `08:34` by `unknown` user at `Vault Gate` is `DENIED` with clearance `L9`.
+     - *Character 1:* `9`.
+  2. **Station 2 (🔦 Dark Camera Feed):**
+     - Dark surveillance frame generated as a 640x360 PNG from the server (`/api/stage/4/camera.png`).
+     - Background `#08142c` with hidden text `#0d1c38` reading `ACCESS DIGIT: 1`.
+     - Slider brightness control ($1\times$ to $6\times$) adjusts CSS `brightness` and `contrast` dynamically to reveal the text in pixels.
+     - Always-visible decoy corner label: `CAM-4 · FREQ-ZETA9`.
+     - CSS surveillance scanline animation (disabled when `prefers-reduced-motion` is enabled).
+     - *Character 2:* `1`.
+  3. **Station 3 (🔣 Symbol Keypad):**
+     - Keypad panel displaying a pulsing vector SVG triangle.
+     - Legend with 6 SVG shapes: `triangle = X`, `circle = O`, `square = K`, `star = S`, `diamond = D`, `pentagon = G`.
+     - *Character 3:* `X`.
+- **Target Answer:** `91X`.
+- **Strict Station-Solve Prerequisite:**
+  - `POST /api/submit` rejects `91X` with `"Solve all 3 stations first. 🛡️"` until all three stations have been independently verified through `POST /api/stage/4/station`.
+  - Wrong station checks count towards stage penalty counter (5 free, then +1 min each).
+  - Solved stations synchronize live over WebSockets (`stage4:station_solved`) and persist across browser reloads.
+
+---
+
 ## 🎨 Design System Tokens
 
 Tokens are defined on `:root`:
@@ -178,7 +205,7 @@ Tokens are defined on `:root`:
 
 ## 🧪 Automated Test Suite
 
-To run all 23 automated tests:
+To run all 28 automated tests:
 ```bash
 npm test
 ```
@@ -207,3 +234,8 @@ npm test
 21. ✅ **Stage 3 Answer Submissions:** Correct acceptance of `ORBIT` advancing to Stage 4, exact decoy penalty counting for `ZETA9` and `AURORA`.
 22. ✅ **Stage 3 Rate Limiting:** Verification of 1s cooldown and 40 messages/hour cap (HTTP 429).
 23. ✅ **Stage 3 Cross-Device Chat Sync & Persistence:** Last 30 messages survive complete server reload from SQLite.
+24. ✅ **Stage 4 Content Gating:** Returns 403 Forbidden for stations and camera image when not on Stage 4.
+25. ✅ **Stage 4 Camera Feed Generation:** Verifies valid 640x360 PNG with `ACCESS DIGIT: 1` text embedded directly in raster pixels.
+26. ✅ **Stage 4 Station Logic:** Validates Station 1 (9), Station 2 (1), Station 3 (X) and ensures wrong attempts are penalized.
+27. ✅ **Stage 4 Submission Gate:** Rejects `91X` before all 3 stations are solved with `"Solve all 3 stations first. 🛡️"`, accepts and advances to Stage 5 after all 3 are solved.
+28. ✅ **Stage 4 Cross-Device Station Sync:** Solved stations persist in SQLite `stage_data` and synchronize live over WebSockets.

@@ -11,6 +11,7 @@ import { gameEngine } from './services/gameEngine.js';
 import { stage1Router } from './routes/stage1.js';
 import { stage2Router } from './routes/stage2.js';
 import { stage3Router } from './routes/stage3.js';
+import { stage4Router } from './routes/stage4.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -171,6 +172,18 @@ app.post('/api/admin/pause', async (req, res) => {
 app.use('/api/stage', requireTeam, stage1Router);
 app.use('/api/stage', requireTeam, stage2Router);
 app.use('/api/stage', requireTeam, stage3Router);
+app.use('/api/stage', requireTeam, stage4Router);
+
+// Alias POST /api/stage4/station per prompt spec
+app.post('/api/stage4/station', requireTeam, async (req, res) => {
+  try {
+    const { n, value } = req.body;
+    const result = await gameEngine.checkStage4Station(req.teamId, n, value);
+    res.json(result);
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
 
 // WebSocket Server Setup
 wss.on('connection', (ws, req) => {

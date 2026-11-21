@@ -13,6 +13,7 @@ export class GameEngine {
     this.stagePads = new Map(); // `${teamId}:${stage}` -> pad object
     this.stageWorkbenches = new Map(); // `${teamId}:${stage}` -> workbench object
     this.stageChats = new Map(); // teamId -> chat messages[]
+    this.stage4Stations = new Map(); // teamId -> Set of solved station numbers
     this.lastChatTime = new Map(); // teamId -> timestamp
     this.chatHourlyTimestamps = new Map(); // teamId -> timestamps[]
     this.globalPaused = false;
@@ -47,6 +48,8 @@ export class GameEngine {
           this.stageWorkbenches.set(`${r.team_id}:${r.stage}`, JSON.parse(r.value));
         } else if (r.key === 'chat_history') {
           this.stageChats.set(r.team_id, JSON.parse(r.value));
+        } else if (r.key === 'stations_solved') {
+          this.stage4Stations.set(r.team_id, new Set(JSON.parse(r.value)));
         }
       } catch (e) {}
     }
@@ -324,6 +327,20 @@ export class GameEngine {
     const isAuroraDecoy = stage === 2 && normalized === 'AURORA';
     const isAuroraOnStage3 = stage === 3 && normalized === 'AURORA';
     const is7X2Decoy = stage === 2 && normalized === '7X2';
+
+    // Stage 4 requirement: all 3 stations must be solved before 91X is accepted
+    if (stage === 4) {
+      const solved = this.stage4Stations.get(teamId) || new Set();
+      if (solved.size < 3) {
+        return {
+          correct: false,
+          attempts: team.wrongAttemptsCurrentStage,
+          penaltyAdded: 0,
+          isDecoy: false,
+          message: 'Solve all 3 stations first. 🛡️'
+        };
+      }
+    }
 
     // Log submission
     await db.run(
@@ -667,6 +684,88 @@ export class GameEngine {
       wardenMessage: wardenMsg,
       history: chat
     };
+  }
+
+  getStage4SolvedStations(teamId) {
+    const set = this.stage4Stations.get(teamId) || new Set();
+    return Array.from(set).sort();
+  }
+
+  async checkStage4Station(teamId, stationNum, rawValue) {
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+
+    if (team.currentStage !== 4) {
+      const err = new Error('Stage 4 content and stations are only accessible while on Stage 4.');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const n = parseInt(stationNum, 10);
+    if (![1, 2, 3].includes(n)) {
+      const err = new Error('Invalid station number. Must be 1, 2, or 3.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const val = (rawValue || '').toString().trim().toUpperCase();
+    const correctMap = { 1: '9', 2: '1', 3: 'X' };
+    const isCorrect = val === correctMap[n];
+
+    let solvedSet = this.stage4Stations.get(teamId);
+    if (!solvedSet) {
+      solvedSet = new Set();
+      this.stage4Stations.set(teamId, solvedSet);
+    }
+
+    if (isCorrect) {
+      solvedSet.add(n);
+      const solvedArr = Array.from(solvedSet).sort();
+
+      await db.run(
+        'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, 4, ?, ?)',
+        [teamId, 'stations_solved', JSON.stringify(solvedArr)]
+      );
+
+      this.broadcastToTeam(teamId, {
+        type: 'stage4:station_solved',
+        station: n,
+        solvedStations: solvedArr,
+        allSolved: solvedSet.size === 3
+      });
+
+      return {
+        ok: true,
+        station: n,
+        solvedStations: solvedArr,
+        allSolved: solvedSet.size === 3
+      };
+    } else {
+      team.wrongAttemptsCurrentStage += 1;
+      const now = Date.now();
+
+      await db.run(
+        `INSERT INTO progress (team_id, stage, fragment, solved_at, wrong_attempts) 
+         VALUES (?, 4, '', ?, ?)
+         ON CONFLICT(team_id, stage) DO UPDATE SET wrong_attempts = ?`,
+        [teamId, now, team.wrongAttemptsCurrentStage, team.wrongAttemptsCurrentStage]
+      );
+
+      if (team.wrongAttemptsCurrentStage > 5) {
+        team.penaltyBreakdown.wrongAttempts += 60;
+        team.totalPenaltySeconds += 60;
+      }
+
+      this.broadcastTeamState(teamId);
+      this.broadcastLeaderboard();
+
+      return {
+        ok: false,
+        station: n,
+        message: 'Not quite, look again. 🙂',
+        attempts: team.wrongAttemptsCurrentStage
+      };
+    }
   }
 
   async togglePause(pauseState) {
