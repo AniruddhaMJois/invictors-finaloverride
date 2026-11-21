@@ -1,0 +1,71 @@
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
+const DEFAULT_COORDINATORS = [
+  { id: 'arun', name: 'Arun', pin: 'ARUN#234' },
+  { id: 'divya', name: 'Divya', pin: 'DIVYA#567' },
+  { id: 'kiran', name: 'Kiran', pin: 'KIRAN#890' },
+  { id: 'pooja', name: 'Pooja', pin: 'POOJA#123' },
+  { id: 'rakshith', name: 'Rakshith', pin: 'RAKSHITH#456' }
+];
+
+let parsedCoordinators = DEFAULT_COORDINATORS;
+if (process.env.COORDINATORS) {
+  try {
+    parsedCoordinators = JSON.parse(process.env.COORDINATORS);
+  } catch (e) {
+    parsedCoordinators = DEFAULT_COORDINATORS;
+  }
+}
+
+export const CONFIG = {
+  PORT: parseInt(process.env.PORT || '3000', 10),
+  ADMIN_PIN: process.env.ADMIN_PIN || 'INVICTORS@23',
+  COORDINATORS: parsedCoordinators,
+  TIME_CAP_SECONDS: parseInt(process.env.TIME_CAP_SECONDS || '5400', 10),
+  SALT: process.env.SALT || 'INVICTORS_OVERRIDE_SALT_998124',
+  COOKIE_SECRET: process.env.COOKIE_SECRET || 'FO_SECRET_KEY_CYBER_2024',
+  NODE_ENV: process.env.NODE_ENV || 'production'
+};
+
+// SERVER-AUTHORITATIVE ANSWERS (NEVER SENT TO CLIENT)
+export const STAGE_ANSWERS = {
+  1: 'NOVA',
+  2: '7K2',
+  3: 'ORBIT',
+  4: '91X',
+  5: 'HEX82D',
+  6: 'FO{91X-7K2-HEX82D-TIBRO-NOVA}#29'
+};
+
+export const STAGE_HINTS = {
+  1: {
+    1: 'Reveals 15-character international Morse code chart: A(•—), B(—•••), C(—•—•), D(—••), E(•), F(••—•), G(——•), H(••••), I(••), J(•———), K(—•—), N(—•), O(———), V(•••—), Z(——••).',
+    2: 'Combining the 4 sectors yields the 4-letter cosmic word NOVA.'
+  },
+  2: {
+    1: 'Structural markers: Base64 has \'==\' padding; Hex has byte pairs; ROT13 has English frequency distribution.',
+    2: 'Sequential order: Base64 Decode -> Hex Decode -> ROT13 Shift. Record both the key fragment (7K2) and the secret access phrase (AURORA).'
+  },
+  3: {
+    1: 'WARDEN demands the secret access phrase recovered from Stage 2 (AURORA).',
+    2: 'Formulate a polite, professional directive of 10+ words declaring your authorized role (technician/engineer/admin) and requesting the code/fragment.'
+  },
+  4: {
+    1: 'Each station hides ONE character. Find all three and join them in order (Station 1 + 2 + 3).',
+    2: 'Station 1: find the DENIED odd row clearance digit. Station 2: slide camera brightness up. Station 3: match glowing symbol with the legend.'
+  },
+  5: {
+    1: 'High-voltage data flows along Column 1 across Channels A through F.',
+    2: 'Read Column 1 bytes (48 45 58 38 32 44) into the workbench and decode Hex to ASCII text.'
+  },
+  6: {
+    1: 'Sort the 5 missions A-Z by NAME: CTF Challenges (f4), Decoding (f2), Hex Decryption (f5), Prompt the AI (f3 reversed), Signal Intercept (f1).',
+    2: 'Reverse Fragment 3 (ORBIT -> TIBRO). Checksum is sum of all digits (0-9) in the key body. Format: FO{...}#checksum.'
+  }
+};

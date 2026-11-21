@@ -1,0 +1,13 @@
+{
+  "name": "final-override",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FINAL OVERRIDE — 6-Stage Cybersecurity Escape Room Web App",
+  "scripts": {
+    "postinstall": "npm --prefix client install && npm --prefix server install",
+    "build": "npm --prefix client run build",
+    "start": "node server/server.js",
+    "test": "node --test tests/acceptance.test.mjs tests/stage1.test.mjs"
+  }
+}
