@@ -66,6 +66,7 @@ interface InputProps {
   autoFocus?: boolean;
   required?: boolean;
   label?: string;
+  list?: string;
   style?: React.CSSProperties;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
@@ -81,12 +82,14 @@ export const Input: React.FC<InputProps> = ({
   autoFocus = false,
   required = false,
   label,
+  list,
   style,
   onKeyDown
 }) => (
   <input
     type={type}
     value={value}
+    list={list}
     onChange={(e) => {
       if (onChange) onChange(e);
       if (onInput) onInput(e);

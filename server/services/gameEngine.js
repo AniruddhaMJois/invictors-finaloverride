@@ -437,12 +437,46 @@ export class GameEngine {
 
     let assignedSetId = 'A';
     try {
-      const allotment = await db.get(
-        'SELECT set_id FROM public.team_allotments WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(?))',
-        [cleanTeamName]
-      );
-      if (allotment && allotment.set_id) {
-        assignedSetId = allotment.set_id;
+      let matchedAllotment = null;
+
+      // 1. Direct number extraction: "Team 15", "15", "Team 01", "Team-15", "Trinetra (Team 1)", etc.
+      const numMatch = cleanTeamName.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || cleanTeamName.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
+      if (numMatch) {
+        const teamNum = parseInt(numMatch[1], 10);
+        matchedAllotment = await db.get(
+          'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE team_number = ?',
+          [teamNum]
+        );
+      }
+
+      // 2. Direct exact name lookup
+      if (!matchedAllotment) {
+        matchedAllotment = await db.get(
+          'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(?))',
+          [cleanTeamName]
+        );
+      }
+
+      // 3. Normalized / fuzzy lookup across all 23 allotments
+      if (!matchedAllotment) {
+        const allAllotments = await db.all('SELECT team_number, team_name, set_id FROM public.team_allotments');
+        const normalize = (s) => (s || '').normalize('NFKD').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        const normInput = normalize(cleanTeamName);
+
+        matchedAllotment = allAllotments.find((a) => {
+          const normName = normalize(a.team_name);
+          return (
+            normName === normInput ||
+            normInput === `team${a.team_number}` ||
+            normInput === String(a.team_number) ||
+            normInput.includes(normName) ||
+            normName.includes(normInput)
+          );
+        });
+      }
+
+      if (matchedAllotment && matchedAllotment.set_id) {
+        assignedSetId = matchedAllotment.set_id;
       }
     } catch (e) {
       console.warn('Could not query team_allotments:', e.message);

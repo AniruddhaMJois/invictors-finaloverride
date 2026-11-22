@@ -33,14 +33,63 @@ const MORSE_CHART_15 = [
   { char: 'I', code: '••' },
   { char: 'J', code: '•———' },
   { char: 'K', code: '—•—' },
+  { char: 'L', code: '•—••' },
+  { char: 'M', code: '——' },
   { char: 'N', code: '—•' },
   { char: 'O', code: '———' },
+  { char: 'R', code: '•—•' },
+  { char: 'S', code: '•••' },
+  { char: 'U', code: '••—' },
   { char: 'V', code: '•••—' },
   { char: 'Z', code: '——••' }
 ];
 
+const SET_STAGE1_DATA: Record<string, {
+  s1Pattern: string[];
+  s2Pattern: string[];
+  s2Telemetry: string;
+  s2Visual: string;
+  s3Pattern: string[];
+  s4Pattern: string[];
+}> = {
+  A: {
+    s1Pattern: ['—', '•'],
+    s2Pattern: ['—', '—', '—'],
+    s2Telemetry: '111-111-111',
+    s2Visual: '━━━   ━━━   ━━━',
+    s3Pattern: ['•', '•', '•', '—'],
+    s4Pattern: ['•', '—']
+  },
+  B: {
+    s1Pattern: ['•', '—', '•', '•'],
+    s2Pattern: ['•', '•', '—'],
+    s2Telemetry: '1-1-111',
+    s2Visual: '•   •   ━━━',
+    s3Pattern: ['—', '•'],
+    s4Pattern: ['•', '—']
+  },
+  C: {
+    s1Pattern: ['•', '•', '•', '—'],
+    s2Pattern: ['•'],
+    s2Telemetry: '1',
+    s2Visual: '•',
+    s3Pattern: ['—', '—', '•'],
+    s4Pattern: ['•', '—']
+  },
+  D: {
+    s1Pattern: ['—', '—'],
+    s2Pattern: ['•', '—'],
+    s2Telemetry: '1-111',
+    s2Visual: '•   ━━━',
+    s3Pattern: ['•', '—', '•'],
+    s4Pattern: ['•', '•', '•']
+  }
+};
+
 export const Stage1Module: FunctionalComponent = () => {
   const state = teamState.value;
+  const assignedSet = ((state as any)?.setId || 'A').toUpperCase();
+  const currentSetData = SET_STAGE1_DATA[assignedSet] || SET_STAGE1_DATA.A;
 
   // Master Sound State
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -200,17 +249,17 @@ export const Stage1Module: FunctionalComponent = () => {
     };
   }
 
-  // Play Sector 1 (Oscilloscope —•)
+  // Play Sector 1 (Oscilloscope)
   function handlePlaySector1() {
     stopCurrentAudio();
     setActiveSector(1);
     setSoundEnabled(true);
 
     const ctx = getAudioContext();
-    const buf = audioBuffersRef.current['sec1'];
+    const buf = assignedSet === 'A' ? audioBuffersRef.current['sec1'] : null;
 
     // Visual timeline simulation
-    runVisualMorseTimeline(['—', '•'], 1);
+    runVisualMorseTimeline(currentSetData.s1Pattern, 1);
 
     if (buf) {
       const src = ctx.createBufferSource();
@@ -226,15 +275,15 @@ export const Stage1Module: FunctionalComponent = () => {
         setActiveSector(null);
       };
     } else {
-      playSynthPattern(['—', '•'], () => setActiveSector(null));
+      playSynthPattern(currentSetData.s1Pattern, () => setActiveSector(null));
     }
   }
 
-  // Play Sector 3 (Optical Strobe Beacon •••—)
+  // Play Sector 3 (Optical Strobe Beacon)
   function handlePlaySector3() {
     stopCurrentAudio();
     setActiveSector(3);
-    runVisualMorseTimeline(['•', '•', '•', '—'], 3, () => {
+    runVisualMorseTimeline(currentSetData.s3Pattern, 3, () => {
       if (strobeLoopRef.current) {
         setTimeout(handlePlaySector3, 500);
       } else {
@@ -243,16 +292,16 @@ export const Stage1Module: FunctionalComponent = () => {
     });
   }
 
-  // Play Sector 4 (Satellite Relay •—)
+  // Play Sector 4 (Satellite Relay)
   function handlePlaySector4() {
     stopCurrentAudio();
     setActiveSector(4);
     setSoundEnabled(true);
 
     const ctx = getAudioContext();
-    const buf = audioBuffersRef.current['sec4'];
+    const buf = assignedSet === 'A' ? audioBuffersRef.current['sec4'] : null;
 
-    runVisualMorseTimeline(['•', '—'], 4);
+    runVisualMorseTimeline(currentSetData.s4Pattern, 4);
 
     if (buf) {
       const src = ctx.createBufferSource();
@@ -268,7 +317,7 @@ export const Stage1Module: FunctionalComponent = () => {
         setActiveSector(null);
       };
     } else {
-      playSynthPattern(['•', '—'], () => setActiveSector(null));
+      playSynthPattern(currentSetData.s4Pattern, () => setActiveSector(null));
     }
   }
 
@@ -677,7 +726,7 @@ export const Stage1Module: FunctionalComponent = () => {
           >
             <div style={{ opacity: 0.5 }}>01001000 01100101 01111000</div>
             <div style={{ color: 'var(--gold)', fontWeight: 800, background: 'rgba(255, 184, 31, 0.15)', padding: '2px 4px', borderRadius: '4px' }}>
-              HIGH-STATES: [ 111-111-111 ]
+              HIGH-STATES: [ {currentSetData.s2Telemetry} ]
             </div>
             <div style={{ opacity: 0.5 }}>01101111 01110010 01100010</div>
           </div>
@@ -695,7 +744,7 @@ export const Stage1Module: FunctionalComponent = () => {
               }}
             >
               <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: '14px' }}>
-                ━━━ &nbsp; ━━━ &nbsp; ━━━
+                {currentSetData.s2Visual}
               </span>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', marginTop: '6px' }}>

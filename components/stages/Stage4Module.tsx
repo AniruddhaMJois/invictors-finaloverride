@@ -68,6 +68,7 @@ export const Stage4Module: React.FC = () => {
   const [solvedStations, setSolvedStations] = useState<number[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [legend, setLegend] = useState<LegendItem[]>([]);
+  const [activeSymbol, setActiveSymbol] = useState<string>('triangle');
 
   // Input states per station
   const [s1Input, setS1Input] = useState('');
@@ -107,6 +108,9 @@ export const Stage4Module: React.FC = () => {
         }
         if (data.station3 && Array.isArray(data.station3.legend)) {
           setLegend(data.station3.legend);
+        }
+        if (data.station3 && data.station3.activeSymbol) {
+          setActiveSymbol(data.station3.activeSymbol);
         }
       } catch (err) {
         console.error('Stage 4 load error:', err);
@@ -565,7 +569,7 @@ export const Stage4Module: React.FC = () => {
                   ACTIVE KEYPAD SYMBOL
                 </div>
                 <div style={{ display: 'inline-block', animation: 'pulse 2s infinite' }}>
-                  <ShapeSVG shape="triangle" size={54} glow color="var(--accent)" />
+                  <ShapeSVG shape={activeSymbol} size={54} glow color="var(--accent)" />
                 </div>
               </div>
             </div>

@@ -8,6 +8,56 @@ import { Footer } from '@/components/layout/Footer';
 import { Card, Button, Input } from '@/components/common/UI';
 import { teamState, showToast, wsManager } from '@/store';
 
+const OFFICIAL_TEAMS = [
+  { num: 1, name: 'Trinetra', set: 'A' },
+  { num: 2, name: 'Bug Busters', set: 'A' },
+  { num: 3, name: 'TRIO_BYTE', set: 'A' },
+  { num: 4, name: 'Team Bhai', set: 'A' },
+  { num: 5, name: 'Cipher', set: 'A' },
+  { num: 6, name: 'Team Jupiter', set: 'A' },
+  { num: 7, name: 'Aèsir’s', set: 'B' },
+  { num: 8, name: 'Team onestop', set: 'B' },
+  { num: 9, name: 'Awake', set: 'B' },
+  { num: 10, name: 'Init', set: 'B' },
+  { num: 11, name: 'Syntax Andhre?', set: 'B' },
+  { num: 12, name: 'FAB-4', set: 'B' },
+  { num: 13, name: 'The Dynamos', set: 'C' },
+  { num: 14, name: 'CodeX', set: 'C' },
+  { num: 15, name: 'A³', set: 'C' },
+  { num: 16, name: 'Huntrix', set: 'C' },
+  { num: 17, name: 'Nexora', set: 'C' },
+  { num: 18, name: 'Tech titans', set: 'C' },
+  { num: 19, name: 'The Cosmos', set: 'D' },
+  { num: 20, name: 'THIRD EYE', set: 'D' },
+  { num: 21, name: 'Lap legends', set: 'D' },
+  { num: 22, name: 'Upside Downers', set: 'D' },
+  { num: 23, name: 'beginners', set: 'D' }
+];
+
+function detectAssignedTeam(input: string) {
+  const clean = (input || '').trim();
+  if (!clean) return null;
+  const numMatch = clean.match(/^(?:team\s*[-_#]?\s*)?0*(\d{1,2})$/i);
+  if (numMatch) {
+    const num = parseInt(numMatch[1], 10);
+    const found = OFFICIAL_TEAMS.find((t) => t.num === num);
+    if (found) return found;
+  }
+  const cleanLower = clean.toLowerCase();
+  const direct = OFFICIAL_TEAMS.find((t) => t.name.toLowerCase() === cleanLower);
+  if (direct) return direct;
+  const norm = cleanLower.replace(/[^a-z0-9]/g, '');
+  const fuzzy = OFFICIAL_TEAMS.find(
+    (t) =>
+      t.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm ||
+      `team${t.num}` === norm ||
+      String(t.num) === norm ||
+      t.name.toLowerCase().includes(cleanLower) ||
+      cleanLower.includes(t.name.toLowerCase())
+  );
+  return fuzzy || null;
+}
+
 export default function LandingPage() {
   const router = useRouter();
 
@@ -96,7 +146,11 @@ export default function LandingPage() {
     e.preventDefault();
     setRegError('');
 
-    const cleanTeam = teamName.trim();
+    let cleanTeam = teamName.trim();
+    const listMatch = cleanTeam.match(/^Team\s*(\d{1,2}):\s*(.*)$/i);
+    if (listMatch) {
+      cleanTeam = listMatch[2].trim() || `Team ${listMatch[1]}`;
+    }
     if (!cleanTeam) {
       setRegError('Please provide a squad name.');
       return;
@@ -447,10 +501,44 @@ export default function LandingPage() {
                   <Input
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
-                    placeholder="e.g. CYBER_VIPERS, NULL_POINTER"
+                    placeholder="e.g. Team 1, Team 15, CodeX, Trinetra"
                     maxLength={24}
+                    list="official-teams-list"
                     autoFocus
                   />
+                  <datalist id="official-teams-list">
+                    {OFFICIAL_TEAMS.map((t) => (
+                      <option key={t.num} value={`Team ${t.num}: ${t.name}`}>
+                        Set {t.set} — {t.name}
+                      </option>
+                    ))}
+                  </datalist>
+                  {(() => {
+                    const detected = detectAssignedTeam(teamName);
+                    if (!detected) return null;
+                    return (
+                      <div
+                        style={{
+                          marginTop: '8px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: 'rgba(39, 180, 255, 0.12)',
+                          border: '1px solid var(--accent)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '12px'
+                        }}
+                      >
+                        <span style={{ color: 'var(--txt)', fontWeight: 700 }}>
+                          🎯 Identified: Team {String(detected.num).padStart(2, '0')} — <strong style={{ color: 'var(--gold)' }}>{detected.name}</strong>
+                        </span>
+                        <span className="badge badge-gold">
+                          Assigned Challenge Set {detected.set}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div>
