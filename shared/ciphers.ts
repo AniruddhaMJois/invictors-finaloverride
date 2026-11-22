@@ -203,6 +203,41 @@ export interface Stage2Variant {
   hintClue: string;
 }
 
+export const SET_STAGE2_VARIANTS: Record<string, Stage2Variant> = {
+  A: {
+    id: 101,
+    name: 'Set A: Base64 -> Hex -> ROT13',
+    payload:
+      'NGU1MDUwNTI0NjQ2MjA0MzU1NDU0ZTQ2NTIyMDU2NDYyMDRlNDg0NTQyNDU0ZTJlMjA1MzQ1NGU1NDVhNTI0MTQ3MjA0NzRhNDIyMDU2NDYyMDM3NTgzMjJlMjA1NjU0NDE0MjQ1NTIyMDRkNTI0NzRlMzkyZQ==',
+    requiredSteps: ['Base64 Decode', 'Hex Decode', 'ROT13'],
+    hintClue: 'Order: Base64 Decode → Hex Decode → ROT13. Record both 7K2 and AURORA.'
+  },
+  B: {
+    id: 102,
+    name: 'Set B: Base64 -> Hex -> ROT13',
+    payload:
+      'NGU1MDUwNTI0NjQ2MjA0MzU1NDU0ZTQ2NTIyMDU2NDYyMDUwNGM0MzU1NTI0NTJlMjA1MzQ1NGU1NDVhNTI0MTQ3MjA0NzRhNDIyMDU2NDYyMDM0NWEzOTJlMjA1NjU0NDE0MjQ1NTIyMDRkNTI0NzRlMzkyZQ==',
+    requiredSteps: ['Base64 Decode', 'Hex Decode', 'ROT13'],
+    hintClue: 'Order: Base64 Decode → Hex Decode → ROT13. Record both 4M9 and CYPHER.'
+  },
+  C: {
+    id: 103,
+    name: 'Set C: Base64 -> Hex -> ROT13',
+    payload:
+      'NGU1MDUwNTI0NjQ2MjA0MzU1NDU0ZTQ2NTIyMDU2NDYyMDQ5NDI0NTQ3NTI0YjJlMjA1MzQ1NGU1NDVhNTI0MTQ3MjA0NzRhNDIyMDU2NDYyMDMzNGIzODJlMjA1NjU0NDE0MjQ1NTIyMDRkNTI0NzRlMzkyZQ==',
+    requiredSteps: ['Base64 Decode', 'Hex Decode', 'ROT13'],
+    hintClue: 'Order: Base64 Decode → Hex Decode → ROT13. Record both 3X8 and VORTEX.'
+  },
+  D: {
+    id: 104,
+    name: 'Set D: Base64 -> Hex -> ROT13',
+    payload:
+      'NGU1MDUwNTI0NjQ2MjA0MzU1NDU0ZTQ2NTIyMDU2NDYyMDQxNTI0ZjQ4NTk0ZTJlMjA1MzQ1NGU1NDVhNTI0MTQ3MjA0NzRhNDIyMDU2NDYyMDM1NDMzMzJlMjA1NjU0NDE0MjQ1NTIyMDRkNTI0NzRlMzkyZQ==',
+    requiredSteps: ['Base64 Decode', 'Hex Decode', 'ROT13'],
+    hintClue: 'Order: Base64 Decode → Hex Decode → ROT13. Record both 5P3 and NEBULA.'
+  }
+};
+
 export const STAGE2_VARIANTS: Stage2Variant[] = [
   // Variant 0: Base64 -> Hex -> ROT13 (Official prompt default)
   {
@@ -255,7 +290,10 @@ export const STAGE2_VARIANTS: Stage2Variant[] = [
   }
 ];
 
-export function getTeamVariant(teamId: number): Stage2Variant {
+export function getTeamVariant(teamId: number, setId?: string): Stage2Variant {
+  if (setId && SET_STAGE2_VARIANTS[setId.toUpperCase()]) {
+    return SET_STAGE2_VARIANTS[setId.toUpperCase()];
+  }
   const index = Math.abs(teamId) % STAGE2_VARIANTS.length;
   return STAGE2_VARIANTS[index];
 }

@@ -163,8 +163,10 @@ export class DatabaseManager {
         is_paused BOOLEAN NOT NULL DEFAULT FALSE,
         paused_at BIGINT NOT NULL DEFAULT 0,
         paused_accum_ms BIGINT NOT NULL DEFAULT 0,
+        set_id VARCHAR(8) NOT NULL DEFAULT 'A',
         created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
       );
+      ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS set_id VARCHAR(8) NOT NULL DEFAULT 'A';
     `);
 
     await this.run(`
@@ -285,6 +287,33 @@ export class DatabaseManager {
         message TEXT NOT NULL,
         at BIGINT NOT NULL,
         dismissed BOOLEAN NOT NULL DEFAULT FALSE
+      );
+    `);
+
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS public.question_sets (
+        set_id VARCHAR(8) PRIMARY KEY,
+        set_name VARCHAR(64) NOT NULL,
+        stage1_answer VARCHAR(64) NOT NULL,
+        stage2_answer VARCHAR(64) NOT NULL,
+        stage2_phrase VARCHAR(64) NOT NULL,
+        stage3_answer VARCHAR(64) NOT NULL,
+        stage3_phrase VARCHAR(64) NOT NULL,
+        stage4_answer VARCHAR(64) NOT NULL,
+        stage4_stations JSONB NOT NULL,
+        stage5_answer VARCHAR(64) NOT NULL,
+        stage5_hex VARCHAR(64) NOT NULL,
+        stage6_answer VARCHAR(128) NOT NULL,
+        created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+      );
+    `);
+
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS public.team_allotments (
+        team_number INT PRIMARY KEY,
+        team_name VARCHAR(64) UNIQUE NOT NULL,
+        set_id VARCHAR(8) NOT NULL REFERENCES public.question_sets(set_id),
+        created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
       );
     `);
 

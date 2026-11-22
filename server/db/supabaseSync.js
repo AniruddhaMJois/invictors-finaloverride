@@ -75,7 +75,8 @@ export const supabaseSync = {
         created_at: team.createdAt || Date.now(),
         is_paused: false,
         paused_at: 0,
-        paused_accum_ms: 0
+        paused_accum_ms: 0,
+        set_id: team.setId || team.set_id || 'A'
       });
 
       if (members && members.length > 0) {

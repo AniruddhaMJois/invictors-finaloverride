@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const variant = getTeamVariant(session.teamId);
+  const variant = getTeamVariant(session.teamId, team?.setId);
   let workbench = gameEngine.getStageWorkbench(session.teamId, 2);
 
   if (!workbench) {

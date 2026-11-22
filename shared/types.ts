@@ -115,6 +115,7 @@ export interface TeamState {
   notepadText: string;
   boundDevicesCount: number;
   verificationCode?: string;
+  setId?: string;
 }
 
 export interface LeaderboardEntry {

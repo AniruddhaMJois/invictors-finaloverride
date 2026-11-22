@@ -50,9 +50,67 @@ const SYMBOL_LEGEND = [
   { shape: 'pentagon', letter: 'G' }
 ];
 
+const SET_STATION_DATA = {
+  A: {
+    s1Clearance: 'L9',
+    activeSymbol: 'triangle',
+    legend: [
+      { shape: 'triangle', letter: 'X' },
+      { shape: 'circle', letter: 'O' },
+      { shape: 'square', letter: 'K' },
+      { shape: 'star', letter: 'S' },
+      { shape: 'diamond', letter: 'D' },
+      { shape: 'pentagon', letter: 'G' }
+    ]
+  },
+  B: {
+    s1Clearance: 'L8',
+    activeSymbol: 'star',
+    legend: [
+      { shape: 'star', letter: 'Z' },
+      { shape: 'triangle', letter: 'A' },
+      { shape: 'circle', letter: 'B' },
+      { shape: 'square', letter: 'C' },
+      { shape: 'diamond', letter: 'D' },
+      { shape: 'pentagon', letter: 'E' }
+    ]
+  },
+  C: {
+    s1Clearance: 'L7',
+    activeSymbol: 'diamond',
+    legend: [
+      { shape: 'diamond', letter: 'Y' },
+      { shape: 'triangle', letter: 'F' },
+      { shape: 'circle', letter: 'G' },
+      { shape: 'square', letter: 'H' },
+      { shape: 'star', letter: 'I' },
+      { shape: 'pentagon', letter: 'J' }
+    ]
+  },
+  D: {
+    s1Clearance: 'L6',
+    activeSymbol: 'square',
+    legend: [
+      { shape: 'square', letter: 'K' },
+      { shape: 'triangle', letter: 'L' },
+      { shape: 'circle', letter: 'M' },
+      { shape: 'star', letter: 'N' },
+      { shape: 'diamond', letter: 'P' },
+      { shape: 'pentagon', letter: 'Q' }
+    ]
+  }
+};
+
 // GET /api/stage/4
 stage4Router.get('/4', requireStage4, (req, res) => {
+  const team = gameEngine.teams.get(req.teamId);
+  const assignedSet = team?.setId || 'A';
+  const setCfg = SET_STATION_DATA[assignedSet] || SET_STATION_DATA.A;
   const solvedStations = gameEngine.getStage4SolvedStations(req.teamId);
+
+  const dynamicLogs = ACCESS_LOGS.map((log) =>
+    log.user === 'unknown' ? { ...log, clearance: setCfg.s1Clearance } : log
+  );
 
   res.json({
     stage: 4,
@@ -71,7 +129,7 @@ stage4Router.get('/4', requireStage4, (req, res) => {
       subtitle: 'Find the intruder',
       instruction:
         'Every door entry is GRANTED except one. Read the clearance digit of the suspicious row.',
-      logs: ACCESS_LOGS
+      logs: dynamicLogs
     },
     station2: {
       id: 2,
@@ -85,8 +143,8 @@ stage4Router.get('/4', requireStage4, (req, res) => {
       title: '🔣 Symbol Keypad',
       subtitle: 'Read the symbol',
       instruction: 'Use the legend to turn the symbol on the keypad into a letter.',
-      legend: SYMBOL_LEGEND,
-      activeSymbol: 'triangle'
+      legend: setCfg.legend,
+      activeSymbol: setCfg.activeSymbol
     }
   });
 });

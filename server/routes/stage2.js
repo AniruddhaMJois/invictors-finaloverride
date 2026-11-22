@@ -47,7 +47,8 @@ function getShuffledToolsForTeam(teamId) {
 
 // GET /api/stage/2
 stage2Router.get('/2', requireStage2, (req, res) => {
-  const variant = getTeamVariant(req.teamId);
+  const team = gameEngine.teams.get(req.teamId);
+  const variant = getTeamVariant(req.teamId, team?.setId);
   let workbench = gameEngine.getStageWorkbench(req.teamId, 2);
 
   if (!workbench) {

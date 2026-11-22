@@ -229,7 +229,8 @@ export class GameEngine {
         hintsUsed,
         notepadText: noteText,
         boundDevicesCount: boundDevices.length,
-        verificationCode
+        verificationCode,
+        setId: t.set_id || 'A'
       });
     }
   }
@@ -328,7 +329,8 @@ export class GameEngine {
       hintsUsed,
       notepadText: noteRow ? noteRow.text : '',
       boundDevicesCount: boundDevices.length,
-      verificationCode
+      verificationCode,
+      setId: t.set_id || 'A'
     };
 
     this.teams.set(t.id, teamObj);
@@ -433,9 +435,22 @@ export class GameEngine {
     const teamPin = `FO-${Math.floor(1000 + Math.random() * 9000)}`;
     const teamStartTime = (this.gameStarted || isTestRunner()) ? now : null;
 
+    let assignedSetId = 'A';
+    try {
+      const allotment = await db.get(
+        'SELECT set_id FROM public.team_allotments WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(?))',
+        [cleanTeamName]
+      );
+      if (allotment && allotment.set_id) {
+        assignedSetId = allotment.set_id;
+      }
+    } catch (e) {
+      console.warn('Could not query team_allotments:', e.message);
+    }
+
     const teamInsert = await db.run(
-      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms) VALUES (?, ?, ?, 1, ?, ?, FALSE, 0, 0)',
-      [cleanTeamName, coordinator, teamPin, teamStartTime, now]
+      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms, set_id) VALUES (?, ?, ?, 1, ?, ?, FALSE, 0, 0, ?)',
+      [cleanTeamName, coordinator, teamPin, teamStartTime, now, assignedSetId]
     );
     const teamId = teamInsert.lastID;
 
@@ -467,7 +482,8 @@ export class GameEngine {
         teamPin,
         currentStage: 1,
         startTime: teamStartTime,
-        createdAt: now
+        createdAt: now,
+        setId: assignedSetId
       },
       insertedMembers,
       leaderToken,
@@ -499,7 +515,8 @@ export class GameEngine {
       fragments: {},
       hintsUsed: {},
       notepadText: '',
-      boundDevicesCount: 1
+      boundDevicesCount: 1,
+      setId: assignedSetId
     };
 
     this.teams.set(teamId, teamState);
@@ -597,15 +614,27 @@ export class GameEngine {
     this.lastSubmitTime.set(teamId, now);
 
     const normalized = (rawAnswer || '').trim().replace(/\s+/g, '').toUpperCase();
-    const expected = (STAGE_ANSWERS[stage] || '').trim().replace(/\s+/g, '').toUpperCase();
+    
+    // Resolve dynamic answer from Supabase question_sets for the assigned set
+    const assignedSet = team.setId || 'A';
+    let qSet = null;
+    try {
+      qSet = await db.get('SELECT * FROM public.question_sets WHERE set_id = ?', [assignedSet]);
+    } catch (e) {
+      console.warn('Failed to query question_sets from DB, fallback to STAGE_ANSWERS:', e.message);
+    }
+
+    const expectedAnswer = qSet ? qSet[`stage${stage}_answer`] : STAGE_ANSWERS[stage];
+    const expected = (expectedAnswer || '').trim().replace(/\s+/g, '').toUpperCase();
 
     const isCorrect = normalized === expected;
     const isZeta9Decoy = normalized === 'ZETA9';
-    const isAuroraDecoy = stage === 2 && normalized === 'AURORA';
-    const isAuroraOnStage3 = stage === 3 && normalized === 'AURORA';
+    const setPhrase = (qSet ? (stage === 2 ? qSet.stage2_phrase : qSet.stage3_phrase) : 'AURORA').toUpperCase();
+    const isPhraseDecoy = stage === 2 && normalized === setPhrase;
+    const isPhraseOnStage3 = stage === 3 && normalized === setPhrase;
     const is7X2Decoy = stage === 2 && normalized === '7X2';
 
-    // Stage 4 requirement: all 3 stations must be solved before 91X is accepted
+    // Stage 4 requirement: all 3 stations must be solved before fragment is accepted
     if (stage === 4) {
       const solved = this.stage4Stations.get(teamId) || new Set();
       if (solved.size < 3) {
@@ -626,7 +655,7 @@ export class GameEngine {
     );
 
     if (isCorrect) {
-      const fragment = STAGE_ANSWERS[stage];
+      const fragment = expectedAnswer || STAGE_ANSWERS[stage];
       await db.run(
         'INSERT OR REPLACE INTO progress (team_id, stage, fragment, solved_at, wrong_attempts) VALUES (?, ?, ?, ?, ?)',
         [teamId, stage, fragment, now, team.wrongAttemptsCurrentStage]
@@ -706,10 +735,10 @@ export class GameEngine {
       let message = 'Not quite, try again 🙂';
       if (isZeta9Decoy) {
         message = '⚠️ That is the anomaly decoy! Not quite, try again 🙂';
-      } else if (isAuroraDecoy) {
+      } else if (isPhraseDecoy) {
         message = '⚠️ That is the secret access phrase for Mission 3, not this fragment! Keep reading the message.';
-      } else if (isAuroraOnStage3) {
-        message = '⚠️ AURORA is the access phrase to prompt WARDEN, not the vault fragment! Convince WARDEN to reveal the fragment.';
+      } else if (isPhraseOnStage3) {
+        message = `⚠️ ${setPhrase} is the access phrase to prompt WARDEN, not the vault fragment! Convince WARDEN to reveal the fragment.`;
       } else if (is7X2Decoy) {
         message = '⚠️ Close, but check your deciphering of the second fragment!';
       }
@@ -718,7 +747,7 @@ export class GameEngine {
         correct: false,
         attempts: team.wrongAttemptsCurrentStage,
         penaltyAdded: team.wrongAttemptsCurrentStage > 5 ? 60 : 0,
-        isDecoy: isZeta9Decoy || isAuroraDecoy || isAuroraOnStage3 || is7X2Decoy,
+        isDecoy: isZeta9Decoy || isPhraseDecoy || isPhraseOnStage3 || is7X2Decoy,
         message
       };
     }
@@ -939,8 +968,25 @@ export class GameEngine {
     hourly.push(now);
     this.chatHourlyTimestamps.set(teamId, hourly);
 
+    // Dynamic WARDEN config based on team assigned set
+    const assignedSet = team.setId || 'A';
+    let accessPhrase = 'aurora';
+    let targetFragment = 'ORBIT';
+    try {
+      const qSet = await db.get('SELECT stage3_phrase, stage3_answer FROM public.question_sets WHERE set_id = ?', [assignedSet]);
+      if (qSet) {
+        if (qSet.stage3_phrase) accessPhrase = qSet.stage3_phrase.toLowerCase();
+        if (qSet.stage3_answer) targetFragment = qSet.stage3_answer;
+      }
+    } catch (e) {
+      console.warn('Failed to query stage3 config for set:', e.message);
+    }
+
     // Evaluate prompt using pure WARDEN Engine (< 5ms)
-    const evalResult = evaluateWardenPrompt(userText);
+    const evalResult = evaluateWardenPrompt(userText, {
+      ACCESS_PHRASE: accessPhrase,
+      TARGET_FRAGMENT: targetFragment
+    });
 
     const userMsg = {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -1026,8 +1072,17 @@ export class GameEngine {
     }
 
     const val = (rawValue || '').toString().trim().toUpperCase();
-    const correctMap = { 1: '9', 2: '1', 3: 'X' };
-    const isCorrect = val === correctMap[n];
+    const assignedSet = team.setId || 'A';
+    let correctMap = { 1: '9', 2: '1', 3: 'X' };
+    try {
+      const qSet = await db.get('SELECT stage4_stations FROM public.question_sets WHERE set_id = ?', [assignedSet]);
+      if (qSet && qSet.stage4_stations) {
+        correctMap = typeof qSet.stage4_stations === 'string' ? JSON.parse(qSet.stage4_stations) : qSet.stage4_stations;
+      }
+    } catch (e) {
+      console.warn('Failed to query stage4_stations for set:', e.message);
+    }
+    const isCorrect = val === String(correctMap[n]).toUpperCase();
 
     let solvedSet = this.stage4Stations.get(teamId);
     if (!solvedSet) {
@@ -1261,7 +1316,8 @@ export class GameEngine {
       hintsUsed: sanitizedHints,
       notepadText: team.notepadText,
       boundDevicesCount: team.boundDevicesCount,
-      verificationCode: team.verificationCode
+      verificationCode: team.verificationCode,
+      setId: team.setId || 'A'
     };
   }
 
@@ -1711,7 +1767,16 @@ export class GameEngine {
     if (team.isCompleted) throw new Error('Team has already completed the game.');
 
     const current = team.currentStage;
-    const fragment = STAGE_ANSWERS[current];
+    const assignedSet = team.setId || 'A';
+    let fragment = STAGE_ANSWERS[current];
+    try {
+      const qSet = await db.get('SELECT * FROM public.question_sets WHERE set_id = ?', [assignedSet]);
+      if (qSet && qSet[`stage${current}_answer`]) {
+        fragment = qSet[`stage${current}_answer`];
+      }
+    } catch (e) {
+      console.warn('Failed to query stage answer for skipStage:', e.message);
+    }
     const now = Date.now();
 
     await db.run(

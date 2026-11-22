@@ -19,19 +19,38 @@ function requireStage5(req, res, next) {
   next();
 }
 
-// 6x4 Memory Grid Definition
-// Column 1 (0-indexed index 1, or 2nd column) carries the active bus line: 48 45 58 38 32 44
-const MEMORY_CORE_CHANNELS = [
-  { channel: 'Channel A', bytes: ['0A', '48', 'F2', '1C'], activeIndex: 1 },
-  { channel: 'Channel B', bytes: ['9B', '45', '7E', 'D0'], activeIndex: 1 },
-  { channel: 'Channel C', bytes: ['3F', '58', 'A1', '64'], activeIndex: 1 },
-  { channel: 'Channel D', bytes: ['E5', '38', '2B', '99'], activeIndex: 1 },
-  { channel: 'Channel E', bytes: ['71', '32', '8C', '4A'], activeIndex: 1 },
-  { channel: 'Channel F', bytes: ['BD', '44', '15', 'EE'], activeIndex: 1 }
+const SET_STAGE5_BYTES = {
+  A: ['48', '45', '58', '38', '32', '44'], // HEX82D
+  B: ['43', '4F', '52', '45', '37', '46'], // CORE7F
+  C: ['42', '59', '54', '45', '39', '41'], // BYTE9A
+  D: ['42', '49', '54', '53', '31', '45']  // BITS1E
+};
+
+const DUMMY_COLUMNS = [
+  ['0A', 'F2', '1C'],
+  ['9B', '7E', 'D0'],
+  ['3F', 'A1', '64'],
+  ['E5', '2B', '99'],
+  ['71', '8C', '4A'],
+  ['BD', '15', 'EE']
 ];
+
+function getMemoryChannelsForSet(bytes) {
+  const channelNames = ['Channel A', 'Channel B', 'Channel C', 'Channel D', 'Channel E', 'Channel F'];
+  return channelNames.map((name, idx) => ({
+    channel: name,
+    bytes: [DUMMY_COLUMNS[idx][0], bytes[idx], DUMMY_COLUMNS[idx][1], DUMMY_COLUMNS[idx][2]],
+    activeIndex: 1
+  }));
+}
 
 // GET /api/stage/5
 stage5Router.get('/5', requireStage5, (req, res) => {
+  const team = gameEngine.teams.get(req.teamId);
+  const assignedSet = team?.setId || 'A';
+  const activeBytes = SET_STAGE5_BYTES[assignedSet] || SET_STAGE5_BYTES.A;
+  const channels = getMemoryChannelsForSet(activeBytes);
+
   res.json({
     stage: 5,
     name: 'Hexadecimal Memory Core',
@@ -42,7 +61,7 @@ stage5Router.get('/5', requireStage5, (req, res) => {
     footerLine:
       '✍️ Decode the active bus line bytes into ASCII text and enter the fragment below.',
     activeColumnIndex: 1,
-    activeBusBytes: ['48', '45', '58', '38', '32', '44'],
-    channels: MEMORY_CORE_CHANNELS
+    activeBusBytes: activeBytes,
+    channels
   });
 });

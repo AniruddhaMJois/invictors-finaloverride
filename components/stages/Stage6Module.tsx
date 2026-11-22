@@ -21,12 +21,21 @@ const MISSIONS: SynthesisSlot[] = [
   { order: 5, stageId: 1, missionName: 'Signal Intercept', keyVar: 'f1', isReversed: false, defaultFragment: 'NOVA' }
 ];
 
+const SET_DEFAULTS: Record<string, Record<number, string>> = {
+  A: { 1: 'NOVA', 2: '7K2', 3: 'ORBIT', 4: '91X', 5: 'HEX82D' },
+  B: { 1: 'LUNA', 2: '4M9', 3: 'SOLAR', 4: '84Z', 5: 'CORE7F' },
+  C: { 1: 'VEGA', 2: '3X8', 3: 'TITAN', 4: '72Y', 5: 'BYTE9A' },
+  D: { 1: 'MARS', 2: '5P3', 3: 'ZENITH', 4: '63K', 5: 'BITS1E' }
+};
+
 export const Stage6Module: React.FC = () => {
   const state = useSignal(teamState);
   const fragments = (state && state.fragments) || {};
+  const assignedSet = (state as any)?.setId || 'A';
+  const setDefaults = SET_DEFAULTS[assignedSet] || SET_DEFAULTS.A;
 
   function getFragment(slot: SynthesisSlot): { raw: string; active: string } {
-    const raw = fragments[slot.stageId] || slot.defaultFragment;
+    const raw = fragments[slot.stageId] || setDefaults[slot.stageId] || slot.defaultFragment;
     const active = slot.isReversed ? raw.split('').reverse().join('') : raw;
     return { raw, active };
   }

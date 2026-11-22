@@ -5,6 +5,33 @@ import { getTeamSession } from '@/lib/server/auth';
 
 export const dynamic = 'force-dynamic';
 
+const SET_STAGE1_SECTORS: Record<string, any[]> = {
+  A: [
+    { id: 1, title: 'Sector 1: Oscilloscope / Pulse Graph', type: 'oscilloscope', description: 'Phosphor oscilloscope pulse trace with carrier frequency', pattern: ['—', '•'], audioUrl: '/api/stage/1/assets/sector1_oscilloscope_N.mp3', caption: 'Short = •   Long = —' },
+    { id: 2, title: 'Sector 2: Binary Telemetry Feed', type: 'binary_feed', description: 'Monospace telemetry stream with high-state pulse blocks', pattern: ['—', '—', '—'], telemetryBlock: '111-111-111', caption: 'Short = •   Long = —' },
+    { id: 3, title: 'Sector 3: Optical Strobe Beacon', type: 'optical_strobe', description: 'Visual amber strobe lamp with optical pulse intervals', pattern: ['•', '•', '•', '—'], caption: 'Short = •   Long = —' },
+    { id: 4, title: 'Sector 4: Satellite Relay Feed', type: 'satellite_relay', description: 'Carrier-wave audio feed and visual pulse spectrogram', pattern: ['•', '—'], audioUrl: '/api/stage/1/assets/sector4_satellite_A.mp3', caption: 'Short = •   Long = —' }
+  ],
+  B: [
+    { id: 1, title: 'Sector 1: Oscilloscope / Pulse Graph', type: 'oscilloscope', description: 'Phosphor oscilloscope pulse trace with carrier frequency', pattern: ['•', '—', '•', '•'], caption: 'Short = •   Long = —' },
+    { id: 2, title: 'Sector 2: Binary Telemetry Feed', type: 'binary_feed', description: 'Monospace telemetry stream with high-state pulse blocks', pattern: ['•', '•', '—'], telemetryBlock: '1-1-111', caption: 'Short = •   Long = —' },
+    { id: 3, title: 'Sector 3: Optical Strobe Beacon', type: 'optical_strobe', description: 'Visual amber strobe lamp with optical pulse intervals', pattern: ['—', '•'], caption: 'Short = •   Long = —' },
+    { id: 4, title: 'Sector 4: Satellite Relay Feed', type: 'satellite_relay', description: 'Carrier-wave audio feed and visual pulse spectrogram', pattern: ['•', '—'], caption: 'Short = •   Long = —' }
+  ],
+  C: [
+    { id: 1, title: 'Sector 1: Oscilloscope / Pulse Graph', type: 'oscilloscope', description: 'Phosphor oscilloscope pulse trace with carrier frequency', pattern: ['•', '•', '•', '—'], caption: 'Short = •   Long = —' },
+    { id: 2, title: 'Sector 2: Binary Telemetry Feed', type: 'binary_feed', description: 'Monospace telemetry stream with high-state pulse blocks', pattern: ['•'], telemetryBlock: '1', caption: 'Short = •   Long = —' },
+    { id: 3, title: 'Sector 3: Optical Strobe Beacon', type: 'optical_strobe', description: 'Visual amber strobe lamp with optical pulse intervals', pattern: ['—', '—', '•'], caption: 'Short = •   Long = —' },
+    { id: 4, title: 'Sector 4: Satellite Relay Feed', type: 'satellite_relay', description: 'Carrier-wave audio feed and visual pulse spectrogram', pattern: ['•', '—'], caption: 'Short = •   Long = —' }
+  ],
+  D: [
+    { id: 1, title: 'Sector 1: Oscilloscope / Pulse Graph', type: 'oscilloscope', description: 'Phosphor oscilloscope pulse trace with carrier frequency', pattern: ['—', '—'], caption: 'Short = •   Long = —' },
+    { id: 2, title: 'Sector 2: Binary Telemetry Feed', type: 'binary_feed', description: 'Monospace telemetry stream with high-state pulse blocks', pattern: ['•', '—'], telemetryBlock: '1-111', caption: 'Short = •   Long = —' },
+    { id: 3, title: 'Sector 3: Optical Strobe Beacon', type: 'optical_strobe', description: 'Visual amber strobe lamp with optical pulse intervals', pattern: ['•', '—', '•'], caption: 'Short = •   Long = —' },
+    { id: 4, title: 'Sector 4: Satellite Relay Feed', type: 'satellite_relay', description: 'Carrier-wave audio feed and visual pulse spectrogram', pattern: ['•', '•', '•'], caption: 'Short = •   Long = —' }
+  ]
+};
+
 export async function GET(request: Request) {
   await ensureInitialized();
   const session = await getTeamSession(request);
@@ -28,6 +55,8 @@ export async function GET(request: Request) {
     );
   }
 
+  const assignedSet = team.setId || 'A';
+  const sectors = SET_STAGE1_SECTORS[assignedSet] || SET_STAGE1_SECTORS.A;
   const pad = gameEngine.getStagePad(session.teamId, 1);
 
   return NextResponse.json({
@@ -45,43 +74,7 @@ export async function GET(request: Request) {
       gap: 0.22,
       leadIn: 0.2
     },
-    sectors: [
-      {
-        id: 1,
-        title: 'Sector 1: Oscilloscope / Pulse Graph',
-        type: 'oscilloscope',
-        description: 'Phosphor oscilloscope pulse trace with carrier frequency',
-        pattern: ['—', '•'],
-        audioUrl: '/api/stage/1/assets/sector1_oscilloscope_N.mp3',
-        caption: 'Short = •   Long = —'
-      },
-      {
-        id: 2,
-        title: 'Sector 2: Binary Telemetry Feed',
-        type: 'binary_feed',
-        description: 'Monospace telemetry stream with high-state pulse blocks',
-        pattern: ['—', '—', '—'],
-        telemetryBlock: '111-111-111',
-        caption: 'Short = •   Long = —'
-      },
-      {
-        id: 3,
-        title: 'Sector 3: Optical Strobe Beacon',
-        type: 'optical_strobe',
-        description: 'Visual amber strobe lamp with optical pulse intervals',
-        pattern: ['•', '•', '•', '—'],
-        caption: 'Short = •   Long = —'
-      },
-      {
-        id: 4,
-        title: 'Sector 4: Satellite Relay Feed',
-        type: 'satellite_relay',
-        description: 'Carrier-wave audio feed and visual pulse spectrogram',
-        pattern: ['•', '—'],
-        audioUrl: '/api/stage/1/assets/sector4_satellite_A.mp3',
-        caption: 'Short = •   Long = —'
-      }
-    ],
+    sectors,
     pad
   });
 }

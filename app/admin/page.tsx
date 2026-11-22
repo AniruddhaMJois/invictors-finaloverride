@@ -40,6 +40,7 @@ export default function AdminPage() {
   const [answersUnlocked, setAnswersUnlocked] = useState(false);
   const [answersData, setAnswersData] = useState<any>(null);
   const [answerSecondsLeft, setAnswerSecondsLeft] = useState(60);
+  const [activeSetTab, setActiveSetTab] = useState<'A' | 'B' | 'C' | 'D'>('A');
 
   // Restart Team confirmation modal state
   const [restartingTeam, setRestartingTeam] = useState<any>(null);
@@ -1060,131 +1061,208 @@ export default function AdminPage() {
                   />
                 </Card>
 
-                {/* Stage Answer Cards Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
-                  <Card>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 1: SIGNAL INTERCEPT</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-                        NOVA
-                      </span>
-                      <Button
-                        variant="ghost"
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
-                        onClick={() => { navigator.clipboard.writeText('NOVA'); showToast('Copied NOVA', 'ok'); }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '6px' }}>
-                      Decoy: FREQ-ZETA9
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 2: DECRYPTION SUITE</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-                        7K2
-                      </span>
-                      <Button
-                        variant="ghost"
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
-                        onClick={() => { navigator.clipboard.writeText('7K2'); showToast('Copied 7K2', 'ok'); }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--gold)', marginTop: '4px' }}>
-                      Access Phrase for Stage 3: <strong>AURORA</strong>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px' }}>
-                      Decoys: AURORA, 7X2, ZETA9
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 3: PROMPT WARDEN</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-                        ORBIT
-                      </span>
-                      <Button
-                        variant="ghost"
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
-                        onClick={() => { navigator.clipboard.writeText('ORBIT'); showToast('Copied ORBIT', 'ok'); }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                      Requires: &quot;AURORA&quot; + Authorised role + Professional statement
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px' }}>
-                      Decoy: ZETA9
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 4: CTF CHALLENGES</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-                        91X
-                      </span>
-                      <Button
-                        variant="ghost"
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
-                        onClick={() => { navigator.clipboard.writeText('91X'); showToast('Copied 91X', 'ok'); }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--cyan)', marginTop: '4px' }}>
-                      Station 1: 9 | Station 2: 1 | Station 3: X
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 5: HEX MEMORY CORE</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
-                        HEX82D
-                      </span>
-                      <Button
-                        variant="ghost"
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
-                        onClick={() => { navigator.clipboard.writeText('HEX82D'); showToast('Copied HEX82D', 'ok'); }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                      Active Bus: Column 1 (48 45 58 38 32 44 &rarr; HEX82D)
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px' }}>
-                      Decoy: ZETA9
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 6: MASTER KEY SYNTHESIS</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                      <span style={{ fontSize: '15px', fontWeight: 800, color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>
-                        FO&#123;91X-7K2-HEX82D-TIBRO-NOVA&#125;#29
-                      </span>
-                      <Button
-                        variant="ghost"
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
-                        onClick={() => { navigator.clipboard.writeText('FO{91X-7K2-HEX82D-TIBRO-NOVA}#29'); showToast('Copied Master Key', 'ok'); }}
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
-                      A-Z Mission Names | Fragment 3 reversed (ORBIT &rarr; TIBRO) | Checksum = 29
-                    </div>
-                  </Card>
+                {/* 4-Set Selector Tabs */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  {(['A', 'B', 'C', 'D'] as const).map((s) => (
+                    <Button
+                      key={s}
+                      variant={activeSetTab === s ? 'gold' : 'ghost'}
+                      onClick={() => setActiveSetTab(s)}
+                      style={{ fontSize: '13px', padding: '6px 14px', fontWeight: 700 }}
+                    >
+                      Challenge Set {s} {s === 'A' ? '(Teams 01–06)' : s === 'B' ? '(Teams 07–12)' : s === 'C' ? '(Teams 13–18)' : '(Teams 19–23)'}
+                    </Button>
+                  ))}
                 </div>
+
+                {/* Stage Answer Cards Grid */}
+                {(() => {
+                  const setInfo = {
+                    A: {
+                      name: 'Set A — Cosmic Vault Alpha (Teams 01–06)',
+                      s1: 'NOVA',
+                      s2: '7K2',
+                      s2Phrase: 'AURORA',
+                      s3: 'ORBIT',
+                      s3Rule: 'Requires: "aurora" + Authorised role + Professional prompt',
+                      s4: '91X',
+                      s4Stations: 'Station 1: 9 | Station 2: 1 | Station 3: X',
+                      s5: 'HEX82D',
+                      s5Bus: 'Column 1 (48 45 58 38 32 44 → HEX82D)',
+                      s6: 'FO{91X-7K2-HEX82D-TIBRO-NOVA}#29',
+                      s6Rule: 'A-Z: 91X (CTF) + 7K2 (Dec) + HEX82D (Hex) + TIBRO (AI Rev) + NOVA (Sig) | Checksum: 29'
+                    },
+                    B: {
+                      name: 'Set B — Cyber Nexus Beta (Teams 07–12)',
+                      s1: 'LUNA',
+                      s2: '4M9',
+                      s2Phrase: 'CYPHER',
+                      s3: 'SOLAR',
+                      s3Rule: 'Requires: "cypher" + Authorised role + Professional prompt',
+                      s4: '84Z',
+                      s4Stations: 'Station 1: 8 | Station 2: 4 | Station 3: Z',
+                      s5: 'CORE7F',
+                      s5Bus: 'Column 1 (43 4F 52 45 37 46 → CORE7F)',
+                      s6: 'FO{84Z-4M9-CORE7F-RALOS-LUNA}#32',
+                      s6Rule: 'A-Z: 84Z (CTF) + 4M9 (Dec) + CORE7F (Hex) + RALOS (AI Rev) + LUNA (Sig) | Checksum: 32'
+                    },
+                    C: {
+                      name: 'Set C — Quantum Matrix Gamma (Teams 13–18)',
+                      s1: 'VEGA',
+                      s2: '3X8',
+                      s2Phrase: 'VORTEX',
+                      s3: 'TITAN',
+                      s3Rule: 'Requires: "vortex" + Authorised role + Professional prompt',
+                      s4: '72Y',
+                      s4Stations: 'Station 1: 7 | Station 2: 2 | Station 3: Y',
+                      s5: 'BYTE9A',
+                      s5Bus: 'Column 1 (42 59 54 45 39 41 → BYTE9A)',
+                      s6: 'FO{72Y-3X8-BYTE9A-NATIT-VEGA}#29',
+                      s6Rule: 'A-Z: 72Y (CTF) + 3X8 (Dec) + BYTE9A (Hex) + NATIT (AI Rev) + VEGA (Sig) | Checksum: 29'
+                    },
+                    D: {
+                      name: 'Set D — Hyperion Vector Delta (Teams 19–23)',
+                      s1: 'MARS',
+                      s2: '5P3',
+                      s2Phrase: 'NEBULA',
+                      s3: 'ZENITH',
+                      s3Rule: 'Requires: "nebula" + Authorised role + Professional prompt',
+                      s4: '63K',
+                      s4Stations: 'Station 1: 6 | Station 2: 3 | Station 3: K',
+                      s5: 'BITS1E',
+                      s5Bus: 'Column 1 (42 49 54 53 31 45 → BITS1E)',
+                      s6: 'FO{63K-5P3-BITS1E-HTINEZ-MARS}#18',
+                      s6Rule: 'A-Z: 63K (CTF) + 5P3 (Dec) + BITS1E (Hex) + HTINEZ (AI Rev) + MARS (Sig) | Checksum: 18'
+                    }
+                  }[activeSetTab];
+
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
+                      <Card>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 1: SIGNAL INTERCEPT</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                            {setInfo.s1}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                            onClick={() => { navigator.clipboard.writeText(setInfo.s1); showToast(`Copied ${setInfo.s1}`, 'ok'); }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '6px' }}>
+                          Decoy: FREQ-ZETA9
+                        </div>
+                      </Card>
+
+                      <Card>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 2: DECRYPTION SUITE</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                            {setInfo.s2}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                            onClick={() => { navigator.clipboard.writeText(setInfo.s2); showToast(`Copied ${setInfo.s2}`, 'ok'); }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--gold)', marginTop: '4px' }}>
+                          Access Phrase for Stage 3: <strong>{setInfo.s2Phrase}</strong>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px' }}>
+                          Decoys: {setInfo.s2Phrase}, ZETA9
+                        </div>
+                      </Card>
+
+                      <Card>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 3: PROMPT WARDEN</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                            {setInfo.s3}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                            onClick={() => { navigator.clipboard.writeText(setInfo.s3); showToast(`Copied ${setInfo.s3}`, 'ok'); }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                          {setInfo.s3Rule}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px' }}>
+                          Decoy: ZETA9
+                        </div>
+                      </Card>
+
+                      <Card>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 4: CTF CHALLENGES</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                            {setInfo.s4}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                            onClick={() => { navigator.clipboard.writeText(setInfo.s4); showToast(`Copied ${setInfo.s4}`, 'ok'); }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--cyan)', marginTop: '4px' }}>
+                          {setInfo.s4Stations}
+                        </div>
+                      </Card>
+
+                      <Card>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 5: HEX MEMORY CORE</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                            {setInfo.s5}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                            onClick={() => { navigator.clipboard.writeText(setInfo.s5); showToast(`Copied ${setInfo.s5}`, 'ok'); }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                          Active Bus: {setInfo.s5Bus}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px' }}>
+                          Decoy: ZETA9
+                        </div>
+                      </Card>
+
+                      <Card>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>STAGE 6: MASTER KEY SYNTHESIS</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--gold)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                            {setInfo.s6}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            style={{ fontSize: '11px', padding: '4px 8px' }}
+                            onClick={() => { navigator.clipboard.writeText(setInfo.s6); showToast('Copied Master Key', 'ok'); }}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
+                          {setInfo.s6Rule}
+                        </div>
+                      </Card>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
