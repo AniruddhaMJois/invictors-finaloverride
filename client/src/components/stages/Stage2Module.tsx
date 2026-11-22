@@ -22,6 +22,28 @@ interface HistoryStep {
   previousText: string;
 }
 
+const TOOL_ICONS: Record<string, string> = {
+  'Base64 Decode': '📦',
+  'Hex Decode': '🔢',
+  'ROT13': '🔄',
+  'Atbash Mirror': '🪞',
+  'Reverse String': '◀️',
+  'ROT5': '5️⃣',
+  'Caesar +3': '🏛️',
+  'Vigenère': '🔑'
+};
+
+const DEFAULT_TOOLS = [
+  'Base64 Decode',
+  'Hex Decode',
+  'ROT13',
+  'Atbash Mirror',
+  'Reverse String',
+  'ROT5',
+  'Caesar +3',
+  'Vigenère'
+];
+
 export const Stage2Module: FunctionalComponent = () => {
   const [initialPayload, setInitialPayload] = useState<string>('');
   const [currentText, setCurrentText] = useState<string>('');
@@ -29,6 +51,7 @@ export const Stage2Module: FunctionalComponent = () => {
   const [history, setHistory] = useState<HistoryStep[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [activeToolPulse, setActiveToolPulse] = useState<string | null>(null);
+  const [toolsList, setToolsList] = useState<string[]>([]);
 
   // Vigenère Modal state
   const [vigenereModalOpen, setVigenereModalOpen] = useState(false);
@@ -57,6 +80,9 @@ export const Stage2Module: FunctionalComponent = () => {
         if (!mounted) return;
 
         setInitialPayload(data.payload || '');
+        if (Array.isArray(data.tools) && data.tools.length > 0) {
+          setToolsList(data.tools);
+        }
 
         const savedWorkbench = data.workbench;
         const textToSet = (savedWorkbench && savedWorkbench.currentText) || data.payload || '';
@@ -507,28 +533,20 @@ export const Stage2Module: FunctionalComponent = () => {
                 gap: '10px'
               }}
             >
-              {[
-                { name: 'Base64 Decode', icon: '📦' },
-                { name: 'Hex Decode', icon: '🔢' },
-                { name: 'ROT13', icon: '🔄' },
-                { name: 'Atbash Mirror', icon: '🪞' },
-                { name: 'Reverse String', icon: '◀️' },
-                { name: 'ROT5', icon: '5️⃣' },
-                { name: 'Caesar +3', icon: '🏛️' },
-                { name: 'Vigenère', icon: '🔑' }
-              ].map((tool) => {
-                const isPulsing = activeToolPulse === tool.name;
+              {(toolsList.length > 0 ? toolsList : DEFAULT_TOOLS).map((toolName) => {
+                const icon = TOOL_ICONS[toolName] || '⚙️';
+                const isPulsing = activeToolPulse === toolName;
                 return (
                   <Button
-                    key={tool.name}
+                    key={toolName}
                     variant="primary"
                     onClick={() => {
-                      if (tool.name === 'Vigenère') {
+                      if (toolName === 'Vigenère') {
                         setVigenereKey('');
                         setVigenereError(null);
                         setVigenereModalOpen(true);
                       } else {
-                        applyTool(tool.name);
+                        applyTool(toolName);
                       }
                     }}
                     style={{
@@ -544,8 +562,8 @@ export const Stage2Module: FunctionalComponent = () => {
                       transition: 'transform 0.15s, box-shadow 0.15s'
                     }}
                   >
-                    <span>{tool.icon}</span>
-                    <span>{tool.name}</span>
+                    <span>{icon}</span>
+                    <span>{toolName}</span>
                   </Button>
                 );
               })}

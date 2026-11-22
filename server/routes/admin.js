@@ -170,6 +170,37 @@ adminRouter.post('/hints/:stage/:n/revert', requireAdmin, async (req, res) => {
   }
 });
 
+// Launch / Start Game for All Squads (Synchronized Start)
+adminRouter.post('/start-game', requireAdmin, async (req, res) => {
+  try {
+    const result = await gameEngine.startGame('Admin');
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reset Game to Standby Lobby
+adminRouter.post('/standby-game', requireAdmin, async (req, res) => {
+  try {
+    const result = await gameEngine.resetGameStart('Admin');
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Pause / Resume Specific Squad
+adminRouter.post('/team/pause', requireAdmin, async (req, res) => {
+  try {
+    const { teamId, pause } = req.body;
+    const result = await gameEngine.toggleTeamPause(parseInt(teamId, 10), Boolean(pause), 'Admin');
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // Pause / Resume Game
 adminRouter.post('/pause', requireAdmin, async (req, res) => {
   try {

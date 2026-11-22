@@ -96,6 +96,8 @@ export interface TeamState {
   serverNow: number;
   clockOffsetMs: number;
   isPaused: boolean;
+  isTeamPaused?: boolean;
+  gameStarted?: boolean;
   totalPenaltySeconds: number;
   penaltyBreakdown: {
     hints: number;
@@ -106,8 +108,8 @@ export interface TeamState {
   fragments: { [stage: number]: string };
   hintsUsed: {
     [stage: number]: {
-      1?: { unlockedAt: number; expiresAt: number; text?: string };
-      2?: { unlockedAt: number; expiresAt: number; text?: string };
+      1?: { unlockedAt: number; expiresAt: number; text?: string | null };
+      2?: { unlockedAt: number; expiresAt: number; text?: string | null };
     };
   };
   notepadText: string;

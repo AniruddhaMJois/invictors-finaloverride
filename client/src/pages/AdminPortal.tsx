@@ -158,6 +158,60 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
     }
   }
 
+  async function handleStartGame() {
+    try {
+      const res = await fetch('/api/admin/start-game', { method: 'POST' });
+      if (res.ok) {
+        showToast('🚀 Game Released! All squads can now enter Mission 1.', 'gold');
+        fetchOverview();
+        fetchTeams();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to start game.', 'bad');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Network error.', 'bad');
+    }
+  }
+
+  async function handleStandbyGame() {
+    try {
+      const res = await fetch('/api/admin/standby-game', { method: 'POST' });
+      if (res.ok) {
+        showToast('⏸️ Game placed on Standby Lobby.', 'gold');
+        fetchOverview();
+        fetchTeams();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to set standby.', 'bad');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Network error.', 'bad');
+    }
+  }
+
+  async function handleToggleTeamPause(teamId: number, currentlyPaused: boolean) {
+    try {
+      const res = await fetch('/api/admin/team/pause', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, pause: !currentlyPaused })
+      });
+      if (res.ok) {
+        showToast(`Squad ${!currentlyPaused ? 'Paused ⏸' : 'Resumed ▶'}`, 'gold');
+        fetchTeams();
+        if (selectedTeamId === teamId) {
+          loadTeamTimeline(teamId);
+        }
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to update squad pause.', 'bad');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Network error.', 'bad');
+    }
+  }
+
   async function handleWaivePenalty(teamId: number, violationId: number) {
     try {
       const res = await fetch('/api/admin/waive-penalty', {
@@ -395,7 +449,13 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
                   Live synchronized feed from VVCE LAN escape-room network.
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button
+                  variant={overview.counters.gameStarted ? 'primary' : 'gold'}
+                  onClick={overview.counters.gameStarted ? handleStandbyGame : handleStartGame}
+                >
+                  {overview.counters.gameStarted ? '⏸️ Reset to Standby Lobby' : '🚀 Release All Squads (Start Game)'}
+                </Button>
                 <Button
                   variant={overview.counters.paused ? 'gold' : 'danger'}
                   onClick={handleTogglePause}
@@ -621,12 +681,13 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
                     <th>Total Time</th>
                     <th>Devices</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTeams.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
                         No squads match the selected filters.
                       </td>
                     </tr>
@@ -677,6 +738,10 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
                           <td>
                             {t.isCompleted ? (
                               <span className="status-chip status-chip-finished">Finished</span>
+                            ) : t.isPaused ? (
+                              <span className="status-chip" style={{ background: 'rgba(255, 93, 108, 0.2)', color: 'var(--bad)', border: '1px solid var(--bad)' }}>
+                                Paused
+                              </span>
                             ) : t.status === 'time_up' ? (
                               <span className="status-chip status-chip-timeup">Time Up</span>
                             ) : t.status === 'stuck' ? (
@@ -684,6 +749,18 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
                             ) : (
                               <span className="status-chip status-chip-progress">On Track</span>
                             )}
+                          </td>
+                          <td>
+                            <Button
+                              variant={t.isPaused ? 'gold' : 'ghost'}
+                              style={{ fontSize: '11px', padding: '3px 8px' }}
+                              onClick={(e: any) => {
+                                e.stopPropagation();
+                                handleToggleTeamPause(t.id, t.isPaused);
+                              }}
+                            >
+                              {t.isPaused ? '▶️ Resume' : '⏸️ Pause'}
+                            </Button>
                           </td>
                         </tr>
                       );
@@ -1000,6 +1077,24 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
               <Card>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Synchronized Game Launch</h3>
+                <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
+                  {overview.counters.gameStarted
+                    ? 'Status: LIVE GAME ACTIVE. All squads are actively solving.'
+                    : 'Status: STANDBY LOBBY. Squads wait in lobby until released.'}
+                </p>
+                <Button
+                  variant={overview.counters.gameStarted ? 'primary' : 'gold'}
+                  onClick={overview.counters.gameStarted ? handleStandbyGame : handleStartGame}
+                  style={{ width: '100%' }}
+                >
+                  {overview.counters.gameStarted
+                    ? '⏸️ Place Game in Standby Lobby'
+                    : '🚀 Release All Squads (Start Game)'}
+                </Button>
+              </Card>
+
+              <Card>
                 <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Global Game Clock</h3>
                 <p style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
                   Emergency pause immediately halts elapsed calculation on all participant devices.
@@ -1180,22 +1275,34 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
             </div>
 
             {/* Emergency Action Buttons */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <Button
-                variant="gold"
-                style={{ flex: 1, fontSize: '12px' }}
-                onClick={() => handleSkipStage(teamTimeline.team.id)}
-              >
-                ⏩ Skip Stage
-              </Button>
-              <Button
-                variant="danger"
-                style={{ flex: 1, fontSize: '12px' }}
-                onClick={() => setRestartingTeam(teamTimeline.team)}
-              >
-                🔄 Restart Team
-              </Button>
-            </div>
+            {(() => {
+              const isTeamPaused = teams.find((t) => t.id === teamTimeline.team.id)?.isPaused || Boolean(teamTimeline.team.isPaused);
+              return (
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                  <Button
+                    variant={isTeamPaused ? 'gold' : 'primary'}
+                    style={{ flex: 1, fontSize: '12px', minWidth: '110px' }}
+                    onClick={() => handleToggleTeamPause(teamTimeline.team.id, isTeamPaused)}
+                  >
+                    {isTeamPaused ? '▶️ Resume Squad' : '⏸️ Pause Squad'}
+                  </Button>
+                  <Button
+                    variant="gold"
+                    style={{ flex: 1, fontSize: '12px', minWidth: '110px' }}
+                    onClick={() => handleSkipStage(teamTimeline.team.id)}
+                  >
+                    ⏩ Skip Stage
+                  </Button>
+                  <Button
+                    variant="danger"
+                    style={{ flex: 1, fontSize: '12px', minWidth: '110px' }}
+                    onClick={() => setRestartingTeam(teamTimeline.team)}
+                  >
+                    🔄 Restart Squad
+                  </Button>
+                </div>
+              );
+            })()}
 
             {/* Chronological Event Timeline */}
             <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '10px', color: 'var(--txt)' }}>

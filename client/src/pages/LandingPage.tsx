@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import { Header } from '../components/layout/Header';
 import { Footer } from '../components/layout/Footer';
 import { Card, Button, Input } from '../components/common/UI';
-import { teamState, showToast } from '../store';
+import { teamState, showToast, wsManager } from '../store';
 
 interface LandingPageProps {
   onStartGame: () => void;
@@ -88,6 +88,7 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
       }
 
       teamState.value = data.state;
+      if (data.token) wsManager.sendAuth(data.token);
       showToast('🚀 Squad Registered! Entering Arena...', 'gold');
       onStartGame();
     } catch (err: any) {
@@ -124,6 +125,7 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
       }
 
       teamState.value = data.state;
+      if (data.token) wsManager.sendAuth(data.token);
       showToast('🔄 Device Reconnected! Resuming...', 'ok');
       onStartGame();
     } catch (err: any) {

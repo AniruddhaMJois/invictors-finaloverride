@@ -57,6 +57,7 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
   // Hint State
   const [confirmHintLevel, setConfirmHintLevel] = useState<1 | 2 | null>(null);
   const [activeHintSeconds, setActiveHintSeconds] = useState<{ [lvl: number]: number }>({});
+  const [showNotepadModal, setShowNotepadModal] = useState(false);
 
   // Team Notepad Debounced Sync
   const [notepadContent, setNotepadContent] = useState(state?.notepadText || '');
@@ -162,6 +163,18 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
         return;
       }
 
+      if (data.text) {
+        const nextState = { ...state };
+        if (!nextState.hintsUsed) nextState.hintsUsed = {};
+        if (!nextState.hintsUsed[state.currentStage]) nextState.hintsUsed[state.currentStage] = {};
+        nextState.hintsUsed[state.currentStage][hintLevel] = {
+          unlockedAt: Date.now(),
+          expiresAt: data.expiresAt || Date.now() + 30000,
+          text: data.text
+        };
+        teamState.value = nextState;
+      }
+
       showToast(`💡 Hint ${hintLevel} Unlocked (+${hintLevel === 1 ? '3' : '5'} min penalty)`, 'gold');
     } catch (err: any) {
       showToast(err.message || 'Network error.', 'bad');
@@ -227,6 +240,101 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
     );
   }
 
+  // PRE-GAME STANDBY LOBBY (WAITING FOR MASTER ADMIN TO RELEASE ALL SQUADS)
+  if (state.gameStarted === false || !state.startTime) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <Header compact onAdminClick={onAdminClick} />
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px 16px'
+          }}
+        >
+          <Card style={{ maxWidth: '640px', width: '100%', textAlign: 'center', padding: '36px 24px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '14px' }}>⏳</div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'var(--gold)',
+                fontWeight: 800,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                marginBottom: '8px'
+              }}
+            >
+              SYNCHRONIZED LOBBY PROTOCOL ENGAGED
+            </div>
+            <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--txt)', marginBottom: '10px' }}>
+              Awaiting Master Admin Launch Signal
+            </h1>
+            <p style={{ color: 'var(--muted)', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
+              Squad <strong style={{ color: 'var(--cyan)' }}>{state.teamName}</strong> is verified and standing by.
+              All squads will enter Mission 1 simultaneously once the event organisers give the launch signal.
+            </p>
+
+            {/* Squad Info Box */}
+            <div
+              style={{
+                background: 'var(--bg2)',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--r-sm)',
+                padding: '16px',
+                textAlign: 'left',
+                marginBottom: '20px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Assigned Coordinator:</span>
+                <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{state.coordinator}</span>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>
+                Squad Roster ({state.members.length} members):
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {state.members.map((m) => (
+                  <span
+                    key={m.id || m.name}
+                    style={{
+                      background: m.isLeader ? 'rgba(255, 184, 31, 0.15)' : 'var(--card)',
+                      border: `1px solid ${m.isLeader ? 'var(--gold)' : 'var(--line)'}`,
+                      padding: '4px 10px',
+                      borderRadius: 'var(--r-sm)',
+                      fontSize: '12px',
+                      color: m.isLeader ? 'var(--gold)' : 'var(--txt)',
+                      fontWeight: 600
+                    }}
+                  >
+                    {m.isLeader ? '👑 ' : '👤 '}
+                    {m.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                color: 'var(--cyan)',
+                fontSize: '13px',
+                fontWeight: 600
+              }}
+            >
+              <span className="animate-spin">🔄</span> Connected to Event LAN · Clocks Frozen
+            </div>
+          </Card>
+        </div>
+        <Footer compact />
+      </div>
+    );
+  }
+
   const currentMeta = STAGES_METADATA.find((s) => s.id === viewStage) || STAGES_METADATA[0];
 
   return (
@@ -258,6 +366,31 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
         </div>
       )}
 
+      {/* Team Specific Pause Overlay */}
+      {state.isTeamPaused && !isGlobalPaused.value && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '52px',
+            left: 0,
+            right: 0,
+            background: 'rgba(255, 93, 108, 0.95)',
+            color: '#ffffff',
+            padding: '10px 16px',
+            textAlign: 'center',
+            fontWeight: 800,
+            fontSize: '14px',
+            zIndex: 998,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px'
+          }}
+        >
+          <span>⏸</span> SQUAD TEMPORARILY PAUSED BY ORGANISERS · CLOCKS FROZEN
+        </div>
+      )}
+
       {/* Sticky HUD Bar */}
       <div
         style={{
@@ -281,14 +414,32 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
             gap: '8px 16px'
           }}
         >
-          {/* Team & Coordinator info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Team & Coordinator & Members info */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--cyan)' }}>
               {state.teamName}
             </div>
             <span style={{ color: 'var(--line)' }}>|</span>
             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
               Coord: <span style={{ color: 'var(--txt)' }}>{state.coordinator}</span>
+            </div>
+            <span style={{ color: 'var(--line)' }}>|</span>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              {state.members.map((m) => (
+                <span
+                  key={m.id || m.name}
+                  style={{
+                    fontSize: '11px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: m.isLeader ? 'rgba(255, 184, 31, 0.15)' : 'var(--bg2)',
+                    color: m.isLeader ? 'var(--gold)' : 'var(--txt)',
+                    border: `1px solid ${m.isLeader ? 'var(--gold)' : 'var(--line)'}`
+                  }}
+                >
+                  {m.isLeader ? '👑 ' : ''}{m.name}
+                </span>
+              ))}
             </div>
             {state.boundDevicesCount > 1 && (
               <span className="badge badge-blue">📱 {state.boundDevicesCount} devices</span>
@@ -350,25 +501,98 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
           width: '100%'
         }}
       >
-        {/* Desktop 2-column or Mobile Stack */}
+        {/* Horizontal Fragment Notebook Strip */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            gap: '20px',
-            alignItems: 'start'
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            background: 'var(--card)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--r-sm)',
+            padding: '10px 16px',
+            marginBottom: '14px',
+            flexWrap: 'wrap'
           }}
         >
-          {/* Left Column (~65%): Stage Rail + Active Stage Card */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              fontWeight: 700,
+              color: 'var(--gold)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span>📒</span>
+            <span>Fragment Notebook:</span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              overflowX: 'auto',
+              flex: 1,
+              padding: '2px 0',
+              scrollbarWidth: 'none'
+            }}
+          >
+            {[1, 2, 3, 4, 5].map((stgNum) => {
+              const frag = state.fragments[stgNum];
+              return (
+                <button
+                  key={stgNum}
+                  onClick={() => frag && copyToClipboard(frag, `Mission ${stgNum} Fragment`)}
+                  title={frag ? 'Click to copy fragment' : `Mission ${stgNum} Locked`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '5px 12px',
+                    background: frag ? 'rgba(52, 211, 153, 0.12)' : 'var(--bg2)',
+                    border: `1px solid ${frag ? 'var(--ok)' : 'var(--line)'}`,
+                    borderRadius: 'var(--r-sm)',
+                    fontSize: '12px',
+                    color: frag ? 'var(--cyan)' : 'var(--muted)',
+                    cursor: frag ? 'pointer' : 'default',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <span style={{ fontWeight: 600, opacity: 0.8 }}>M{stgNum}:</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                    {frag ? `${frag} ✓` : '🔒 LOCKED'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Full-Screen Mission Workspace Container */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+          {/* Top Bar: Horizontal Stage Navigation Rail + Tactical Hints Strip */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}
+          >
             {/* Horizontal Stage Rail */}
             <div
               style={{
                 display: 'flex',
                 gap: '8px',
                 overflowX: 'auto',
-                paddingBottom: '4px',
-                scrollbarWidth: 'none'
+                paddingBottom: '2px',
+                scrollbarWidth: 'none',
+                flex: 1
               }}
             >
               {STAGES_METADATA.map((stg) => {
@@ -390,7 +614,6 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                   color = 'var(--gold)';
                 } else if (isLocked) {
                   color = 'var(--muted)';
-                  opacity: 0.6;
                 }
 
                 return (
@@ -414,7 +637,8 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                       fontSize: '13px',
                       fontWeight: 700,
                       cursor: isLocked ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s'
+                      transition: 'all 0.2s',
+                      opacity: isLocked ? 0.6 : 1
                     }}
                   >
                     <span>{stg.icon}</span>
@@ -426,263 +650,194 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
               })}
             </div>
 
-            {/* Stage Card Shell */}
-            <Card className={shakeCard ? 'animate-shake' : ''}>
-              {/* Stage Card Header */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  borderBottom: '1px solid var(--line)',
-                  paddingBottom: '12px',
-                  marginBottom: '16px'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '24px' }}>{currentMeta.icon}</span>
-                    <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)' }}>
-                      Stage {currentMeta.id}: {currentMeta.displayName}
-                    </h2>
-                  </div>
-                  {currentMeta.subtitle && (
-                    <div style={{ fontSize: '12px', color: 'var(--cyan)', marginTop: '2px' }}>
-                      {currentMeta.subtitle}
-                    </div>
-                  )}
-                </div>
+            {/* Tactical Hints Action Slot */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <HintSlot
+                stageNum={currentStageNum}
+                hintLevel={1}
+                penaltyText="+3 min"
+                hintData={state.hintsUsed?.[currentStageNum]?.[1]}
+                onUnlock={() => setConfirmHintLevel(1)}
+              />
+              <HintSlot
+                stageNum={currentStageNum}
+                hintLevel={2}
+                penaltyText="+5 min"
+                hintData={state.hintsUsed?.[currentStageNum]?.[2]}
+                disabled={!state.hintsUsed?.[currentStageNum]?.[1]}
+                onUnlock={() => setConfirmHintLevel(2)}
+              />
+            </div>
+          </div>
 
-                <span className="badge badge-blue">⏱ Avg: {currentMeta.avgTime}</span>
+          {/* Full Screen Stage Card */}
+          <Card className={shakeCard ? 'animate-shake' : ''} style={{ width: '100%' }}>
+            {/* Stage Card Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid var(--line)',
+                paddingBottom: '12px',
+                marginBottom: '16px'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '24px' }}>{currentMeta.icon}</span>
+                  <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)' }}>
+                    Stage {currentMeta.id}: {currentMeta.displayName}
+                  </h2>
+                </div>
+                {currentMeta.subtitle && (
+                  <div style={{ fontSize: '12px', color: 'var(--cyan)', marginTop: '2px' }}>
+                    {currentMeta.subtitle}
+                  </div>
+                )}
               </div>
 
-              {/* Stage Content Slot */}
-              {viewStage === 1 && <Stage1Module />}
-              {viewStage === 2 && <Stage2Module />}
-              {viewStage === 3 && <Stage3Module />}
-              {viewStage === 4 && <Stage4Module />}
-              {viewStage === 5 && <Stage5Module />}
-              {viewStage === 6 && <Stage6Module />}
+              <span className="badge badge-blue">⏱ Avg: {currentMeta.avgTime}</span>
+            </div>
 
-              {/* Answer Submission Bar */}
-              {viewStage === currentStageNum ? (
-                <form
-                  onSubmit={handleSubmit}
+            {/* Stage Content Slot */}
+            {viewStage === 1 && <Stage1Module />}
+            {viewStage === 2 && <Stage2Module />}
+            {viewStage === 3 && <Stage3Module />}
+            {viewStage === 4 && <Stage4Module />}
+            {viewStage === 5 && <Stage5Module />}
+            {viewStage === 6 && <Stage6Module />}
+
+            {/* Answer Submission Bar */}
+            {viewStage === currentStageNum ? (
+              <form
+                onSubmit={handleSubmit}
+                style={{
+                  borderTop: '1px solid var(--line)',
+                  paddingTop: '16px',
+                  marginTop: '20px'
+                }}
+              >
+                <label
                   style={{
-                    borderTop: '1px solid var(--line)',
-                    paddingTop: '16px',
-                    marginTop: '20px'
+                    display: 'block',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: 'var(--cyan)',
+                    marginBottom: '8px'
                   }}
                 >
-                  <label
+                  ENTER RECOVERED FRAGMENT / OVERRIDE KEY:
+                </label>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <Input
+                    value={answerInput}
+                    onInput={(e: any) => setAnswerInput(e.target.value)}
+                    placeholder={
+                      currentStageNum === 6
+                        ? 'FO{...}#checksum'
+                        : `Enter Stage ${currentStageNum} solution fragment`
+                    }
+                    autoFocus
+                  />
+                  <Button
+                    type="submit"
+                    variant="gold"
+                    disabled={isSubmitting || submitCooldown.value > 0 || !answerInput.trim()}
+                    cooldownProgress={submitCooldown.value}
+                    style={{ minWidth: '110px' }}
+                  >
+                    {submitCooldown.value > 0 ? 'Wait 1s...' : 'Submit ✅'}
+                  </Button>
+                </div>
+
+                {/* Live Feedback Line */}
+                {feedback && (
+                  <div
+                    aria-live="polite"
                     style={{
-                      display: 'block',
+                      marginTop: '10px',
                       fontSize: '13px',
-                      fontWeight: 700,
-                      color: 'var(--cyan)',
-                      marginBottom: '8px'
+                      fontWeight: 600,
+                      color: feedback.isError ? 'var(--bad)' : 'var(--ok)'
                     }}
                   >
-                    ENTER RECOVERED FRAGMENT / OVERRIDE KEY:
-                  </label>
-
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <Input
-                      value={answerInput}
-                      onInput={(e: any) => setAnswerInput(e.target.value)}
-                      placeholder={
-                        currentStageNum === 6
-                          ? 'FO{...}#checksum'
-                          : `Enter Stage ${currentStageNum} solution fragment`
-                      }
-                      autoFocus
-                    />
-                    <Button
-                      type="submit"
-                      variant="gold"
-                      disabled={isSubmitting || submitCooldown.value > 0 || !answerInput.trim()}
-                      cooldownProgress={submitCooldown.value}
-                      style={{ minWidth: '110px' }}
-                    >
-                      {submitCooldown.value > 0 ? 'Wait 1s...' : 'Submit ✅'}
-                    </Button>
+                    {feedback.text}
                   </div>
-
-                  {/* Live Feedback Line */}
-                  {feedback && (
-                    <div
-                      aria-live="polite"
-                      style={{
-                        marginTop: '10px',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        color: feedback.isError ? 'var(--bad)' : 'var(--ok)'
-                      }}
-                    >
-                      {feedback.text}
-                    </div>
-                  )}
-                </form>
-              ) : (
-                <div
-                  style={{
-                    borderTop: '1px solid var(--line)',
-                    paddingTop: '14px',
-                    marginTop: '16px',
-                    color: 'var(--ok)',
-                    fontSize: '13px',
-                    fontWeight: 700
-                  }}
-                >
-                  ✓ Stage {viewStage} is already cleared! Fragment recovered:{' '}
-                  <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>
-                    {state.fragments[viewStage] || 'SAVED'}
-                  </span>
-                </div>
-              )}
-            </Card>
-          </div>
-
-          {/* Right Column (~35%, sticky): Notebook, Hints, Notepad, Roster */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {/* Fragment Notebook */}
-            <Card>
+                )}
+              </form>
+            ) : (
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '12px'
+                  borderTop: '1px solid var(--line)',
+                  paddingTop: '14px',
+                  marginTop: '16px',
+                  color: 'var(--ok)',
+                  fontSize: '13px',
+                  fontWeight: 700
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>📒</span>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--gold)' }}>
-                    Fragment Notebook
-                  </h3>
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Tap to copy</span>
+                ✓ Stage {viewStage} is already cleared! Fragment recovered:{' '}
+                <span style={{ color: 'var(--gold)', fontFamily: 'var(--font-mono)' }}>
+                  {state.fragments[viewStage] || 'SAVED'}
+                </span>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {[1, 2, 3, 4, 5].map((stgNum) => {
-                  const frag = state.fragments[stgNum];
-                  return (
-                    <div
-                      key={stgNum}
-                      onClick={() => frag && copyToClipboard(frag, `Mission ${stgNum} Fragment`)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 12px',
-                        background: 'var(--bg2)',
-                        border: `1px solid ${frag ? 'var(--ok)' : 'var(--line)'}`,
-                        borderRadius: 'var(--r-sm)',
-                        cursor: frag ? 'pointer' : 'default',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>
-                        M{stgNum} ({STAGES_METADATA[stgNum - 1].sortName}):
-                      </span>
-                      {frag ? (
-                        <span
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            color: 'var(--cyan)',
-                            fontWeight: 700
-                          }}
-                        >
-                          {frag} ✓
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--muted)', fontSize: '11px' }}>🔒 Locked</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {/* Hint Panel */}
-            <Card>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                <span>💡</span>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent)' }}>
-                  Tactical Intelligence (Hints)
-                </h3>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {/* Hint 1 */}
-                <HintSlot
-                  stageNum={currentStageNum}
-                  hintLevel={1}
-                  penaltyText="+3 min"
-                  hintData={state.hintsUsed?.[currentStageNum]?.[1]}
-                  secondsLeft={activeHintSeconds[1]}
-                  onUnlock={() => setConfirmHintLevel(1)}
-                />
-
-                {/* Hint 2 (Requires Hint 1) */}
-                <HintSlot
-                  stageNum={currentStageNum}
-                  hintLevel={2}
-                  penaltyText="+5 min"
-                  hintData={state.hintsUsed?.[currentStageNum]?.[2]}
-                  secondsLeft={activeHintSeconds[2]}
-                  disabled={!state.hintsUsed?.[currentStageNum]?.[1]}
-                  onUnlock={() => setConfirmHintLevel(2)}
-                />
-              </div>
-            </Card>
-
-            {/* Team Notepad (Synced) */}
-            <Card>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: '8px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span>📝</span>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--txt)' }}>
-                    Squad Shared Notepad
-                  </h3>
-                </div>
-                <span style={{ fontSize: '10px', color: 'var(--muted)' }}>Live sync</span>
-              </div>
-              <textarea
-                value={notepadContent}
-                onInput={(e: any) => handleNotepadChange(e.target.value)}
-                placeholder="Jot down clues, like the access phrase 🗝️"
-                className="textarea"
-                rows={3}
-                style={{ resize: 'vertical' }}
-              />
-            </Card>
-
-            {/* Squad Members Roster */}
-            <Card>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted)', marginBottom: '8px' }}>
-                SQUAD ROSTER
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {state.members.map((m) => (
-                  <span key={m.id || m.name} className="badge badge-blue">
-                    {m.isLeader ? '👑 ' : '👤 '}
-                    {m.name}
-                  </span>
-                ))}
-              </div>
-            </Card>
-          </div>
+            )}
+          </Card>
         </div>
       </main>
+
+      {/* Floating Squad Notepad Button */}
+      <button
+        onClick={() => setShowNotepadModal(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: 'var(--accent)',
+          color: '#ffffff',
+          border: 'none',
+          borderRadius: '50px',
+          padding: '12px 20px',
+          fontWeight: 700,
+          fontSize: '13px',
+          boxShadow: '0 4px 18px rgba(39, 180, 255, 0.45)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          zIndex: 80,
+          transition: 'all 0.2s'
+        }}
+      >
+        <span style={{ fontSize: '16px' }}>📝</span>
+        <span>Squad Notepad</span>
+      </button>
+
+      {/* Synced Notepad Modal */}
+      <Modal
+        isOpen={showNotepadModal}
+        onClose={() => setShowNotepadModal(false)}
+        title="📝 Squad Shared Notepad (Live Synced)"
+        confirmText="Done / Close"
+        onConfirm={() => setShowNotepadModal(false)}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+            This notepad is synced in real time across all devices in squad{' '}
+            <strong style={{ color: 'var(--cyan)' }}>{state.teamName}</strong>.
+          </div>
+          <textarea
+            value={notepadContent}
+            onInput={(e: any) => handleNotepadChange(e.target.value)}
+            placeholder="Jot down clues, passwords, formulas, or fragment notes here..."
+            className="textarea"
+            rows={8}
+            style={{ width: '100%', resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+          />
+        </div>
+      </Modal>
 
       <Footer compact />
 
@@ -746,7 +901,6 @@ function HintSlot({
   hintLevel,
   penaltyText,
   hintData,
-  secondsLeft,
   disabled = false,
   onUnlock
 }: {
@@ -754,12 +908,26 @@ function HintSlot({
   hintLevel: 1 | 2;
   penaltyText: string;
   hintData?: { text?: string | null; expiresAt: number };
-  secondsLeft?: number;
   disabled?: boolean;
   onUnlock: () => void;
 }) {
-  const isUnlocked = !!hintData;
-  const isExpired = hintData && (!hintData.text || (secondsLeft !== undefined && secondsLeft <= 0));
+  const isUnlocked = Boolean(hintData);
+  const [secondsLeft, setSecondsLeft] = useState<number>(() => {
+    if (!hintData?.expiresAt) return 0;
+    return Math.max(0, Math.ceil((hintData.expiresAt - Date.now()) / 1000));
+  });
+
+  useEffect(() => {
+    if (!hintData?.expiresAt) return;
+    const calc = () => {
+      const left = Math.max(0, Math.ceil((hintData.expiresAt - Date.now()) / 1000));
+      setSecondsLeft(left);
+      if (left <= 0) clearInterval(timer);
+    };
+    calc();
+    const timer = setInterval(calc, 500);
+    return () => clearInterval(timer);
+  }, [hintData?.expiresAt]);
 
   if (!isUnlocked) {
     return (
@@ -767,30 +935,32 @@ function HintSlot({
         variant="ghost"
         onClick={onUnlock}
         disabled={disabled}
-        style={{ width: '100%', justifyContent: 'space-between', fontSize: '12px' }}
+        style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', gap: '6px', alignItems: 'center' }}
       >
         <span>💡 Hint {hintLevel}</span>
-        <span style={{ color: 'var(--amber)' }}>{penaltyText}</span>
+        <span style={{ color: 'var(--amber)', fontSize: '11px' }}>({penaltyText})</span>
       </Button>
     );
   }
+
+  const isExpired = secondsLeft <= 0;
 
   if (isExpired) {
     return (
       <div
         style={{
-          padding: '8px 12px',
+          padding: '6px 12px',
           background: 'var(--bg2)',
           border: '1px solid var(--line)',
           borderRadius: 'var(--r-sm)',
           fontSize: '12px',
           color: 'var(--muted)',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '6px'
         }}
       >
-        <span>🔒 Hint {hintLevel} Expired & Locked</span>
+        <span>🔒 Hint {hintLevel} Expired</span>
       </div>
     );
   }
@@ -799,26 +969,27 @@ function HintSlot({
   return (
     <div
       style={{
-        padding: '10px 14px',
-        background: 'rgba(39, 180, 255, 0.08)',
+        padding: '8px 14px',
+        background: 'rgba(39, 180, 255, 0.1)',
         border: '1px solid var(--accent)',
         borderRadius: 'var(--r-sm)',
-        fontSize: '12px'
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        maxWidth: '480px'
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '6px'
-        }}
-      >
-        <span style={{ fontWeight: 700, color: 'var(--cyan)' }}>💡 Hint {hintLevel} Active:</span>
-        <CountdownRing secondsLeft={secondsLeft || 30} totalSeconds={30} size={28} strokeWidth={3} />
-      </div>
-      <div style={{ color: 'var(--txt)', lineHeight: 1.4, fontWeight: 500 }}>
-        {hintData.text || 'Loading hint...'}
+      <CountdownRing secondsLeft={secondsLeft} totalSeconds={30} size={28} strokeWidth={3} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+          <span style={{ fontWeight: 800, color: 'var(--cyan)', fontSize: '11px', letterSpacing: '0.5px' }}>
+            💡 HINT {hintLevel} ACTIVE ({secondsLeft}s):
+          </span>
+        </div>
+        <div style={{ color: 'var(--txt)', lineHeight: 1.4, fontWeight: 600, fontSize: '13px' }}>
+          {hintData?.text || 'Deciphering intelligence...'}
+        </div>
       </div>
     </div>
   );

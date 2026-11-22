@@ -40,6 +40,12 @@ class WSManager {
     };
   }
 
+  sendAuth(token: string) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'auth', token }));
+    }
+  }
+
   connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
@@ -62,6 +68,22 @@ class WSManager {
         const msg = JSON.parse(event.data);
         if (msg.type === 'state:update') {
           teamState.value = msg.state;
+        } else if (msg.type === 'game:start') {
+          if (teamState.value) {
+            teamState.value = {
+              ...teamState.value,
+              gameStarted: true,
+              startTime: msg.startedAt || Date.now()
+            };
+          }
+        } else if (msg.type === 'game:standby') {
+          if (teamState.value) {
+            teamState.value = {
+              ...teamState.value,
+              gameStarted: false,
+              startTime: null
+            };
+          }
         } else if (msg.type === 'pause:on') {
           isGlobalPaused.value = true;
         } else if (msg.type === 'pause:off') {

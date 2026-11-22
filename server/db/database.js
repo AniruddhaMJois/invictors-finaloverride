@@ -182,6 +182,18 @@ export class DatabaseManager {
     await this.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('paused', '0')");
     await this.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('paused_at', '0')");
     await this.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('paused_accum_ms', '0')");
+    await this.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('game_started', '0')");
+
+    // Per-team pause column migrations (safe for existing db)
+    try {
+      await this.run('ALTER TABLE teams ADD COLUMN is_paused INTEGER DEFAULT 0;');
+    } catch (e) {}
+    try {
+      await this.run('ALTER TABLE teams ADD COLUMN paused_at INTEGER DEFAULT 0;');
+    } catch (e) {}
+    try {
+      await this.run('ALTER TABLE teams ADD COLUMN paused_accum_ms INTEGER DEFAULT 0;');
+    } catch (e) {}
 
     this.isReady = true;
   }

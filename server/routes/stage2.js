@@ -20,6 +20,31 @@ function requireStage2(req, res, next) {
   next();
 }
 
+const ALL_STAGE2_TOOLS = [
+  'Base64 Decode',
+  'Hex Decode',
+  'ROT13',
+  'Atbash Mirror',
+  'Reverse String',
+  'ROT5',
+  'Caesar +3',
+  'Vigenère'
+];
+
+function getShuffledToolsForTeam(teamId) {
+  const tools = [...ALL_STAGE2_TOOLS];
+  let seed = ((Number(teamId) || 1) * 9301 + 49297) % 233280;
+  function rnd() {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  }
+  for (let i = tools.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [tools[i], tools[j]] = [tools[j], tools[i]];
+  }
+  return tools;
+}
+
 // GET /api/stage/2
 stage2Router.get('/2', requireStage2, (req, res) => {
   const variant = getTeamVariant(req.teamId);
@@ -41,16 +66,7 @@ stage2Router.get('/2', requireStage2, (req, res) => {
     footerLine:
       '✍️ The message tells you the secret piece. Type it below. 👉 Also remember the special access phrase in it: you will need it in the next mission! 🗝️',
     payload: variant.payload,
-    tools: [
-      'Base64 Decode',
-      'Hex Decode',
-      'ROT13',
-      'Atbash Mirror',
-      'Reverse String',
-      'ROT5',
-      'Caesar +3',
-      'Vigenère'
-    ],
+    tools: getShuffledToolsForTeam(req.teamId),
     workbench
   });
 });

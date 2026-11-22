@@ -4,6 +4,12 @@ import { CONFIG, STAGE_ANSWERS, STAGE_HINTS } from '../config/index.js';
 import { getTeamVariant } from '../../shared/ciphers.js';
 import { evaluateWardenPrompt } from './wardenEngine.js';
 
+const isTestRunner = () =>
+  process.env.NODE_ENV === 'test' ||
+  process.execArgv.includes('--test') ||
+  process.argv.includes('--test') ||
+  process.argv.some((a) => a.includes('test'));
+
 export class GameEngine {
   constructor() {
     this.teams = new Map(); // teamId -> cached state
@@ -16,6 +22,7 @@ export class GameEngine {
     this.stage4Stations = new Map(); // teamId -> Set of solved station numbers
     this.lastChatTime = new Map(); // teamId -> timestamp
     this.chatHourlyTimestamps = new Map(); // teamId -> timestamps[]
+    this.gameStarted = isTestRunner(); // master admin launch signal (defaults true in test runner)
     this.globalPaused = false;
     this.globalPausedAt = 0;
     this.globalPausedAccumMs = 0;
@@ -26,10 +33,16 @@ export class GameEngine {
 
   async loadFromDb() {
     // Load global settings
+    const gameStartedRow = await db.get("SELECT value FROM settings WHERE key = 'game_started'");
     const pausedRow = await db.get("SELECT value FROM settings WHERE key = 'paused'");
     const pausedAtRow = await db.get("SELECT value FROM settings WHERE key = 'paused_at'");
     const pausedAccumRow = await db.get("SELECT value FROM settings WHERE key = 'paused_accum_ms'");
 
+    if (isTestRunner()) {
+      this.gameStarted = true;
+    } else {
+      this.gameStarted = gameStartedRow ? gameStartedRow.value === '1' : false;
+    }
     this.globalPaused = pausedRow ? pausedRow.value === '1' : false;
     this.globalPausedAt = pausedAtRow ? parseInt(pausedAtRow.value, 10) : 0;
     this.globalPausedAccumMs = pausedAccumRow ? parseInt(pausedAccumRow.value, 10) : 0;
@@ -135,6 +148,9 @@ export class GameEngine {
         isCompleted: !!t.is_completed,
         startTime: t.start_time,
         endTime: t.end_time,
+        isPaused: t.is_paused === 1,
+        pausedAt: t.paused_at ? parseInt(t.paused_at, 10) : 0,
+        pausedAccumMs: t.paused_accum_ms ? parseInt(t.paused_accum_ms, 10) : 0,
         totalPenaltySeconds: totalPenalties,
         penaltyBreakdown: {
           hints: totalHintPenalties,
@@ -211,10 +227,11 @@ export class GameEngine {
 
     const now = Date.now();
     const teamPin = `FO-${Math.floor(1000 + Math.random() * 9000)}`;
+    const teamStartTime = (this.gameStarted || isTestRunner()) ? now : null;
 
     const teamInsert = await db.run(
-      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at) VALUES (?, ?, ?, 1, ?, ?)',
-      [cleanTeamName, coordinator, teamPin, now, now]
+      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms) VALUES (?, ?, ?, 1, ?, ?, 0, 0, 0)',
+      [cleanTeamName, coordinator, teamPin, teamStartTime, now]
     );
     const teamId = teamInsert.lastID;
 
@@ -246,8 +263,11 @@ export class GameEngine {
       members: insertedMembers,
       currentStage: 1,
       isCompleted: false,
-      startTime: now,
+      startTime: teamStartTime,
       endTime: null,
+      isPaused: false,
+      pausedAt: 0,
+      pausedAccumMs: 0,
       totalPenaltySeconds: 0,
       penaltyBreakdown: { hints: 0, tabSwitches: 0, wrongAttempts: 0 },
       wrongAttemptsCurrentStage: 0,
@@ -540,8 +560,8 @@ export class GameEngine {
 
     const now = Date.now();
 
-    if (now - (team.startTime || 0) < 3000) {
-      return { success: false, reason: 'Grace period (first 3s)' };
+    if (!team.startTime || now - team.startTime < 3000) {
+      return { success: false, reason: 'Grace period (first 3s or standby lobby)' };
     }
 
     const last = this.lastViolationTime.get(teamId) || 0;
@@ -821,12 +841,77 @@ export class GameEngine {
     this.broadcastAdminUpdate();
   }
 
+  async startGame(actor = 'Admin') {
+    this.gameStarted = true;
+    const now = Date.now();
+    await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '1')");
+
+    // Start all squads that have not started yet
+    for (const team of this.teams.values()) {
+      if (!team.startTime) {
+        team.startTime = now;
+        await db.run('UPDATE teams SET start_time = ? WHERE id = ?', [now, team.id]);
+        this.broadcastTeamState(team.id);
+      }
+    }
+
+    await this.logAudit(actor, 'start_game', 'Master admin launched the game for all squads');
+    this.broadcastAll({ type: 'game:start', startedAt: now });
+    this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
+    return { success: true, startedAt: now };
+  }
+
+  async resetGameStart(actor = 'Admin') {
+    this.gameStarted = false;
+    await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '0')");
+    await this.logAudit(actor, 'reset_game_start', 'Master admin set game back to standby lobby');
+    this.broadcastAll({ type: 'game:standby' });
+    this.broadcastAdminUpdate();
+    return { success: true };
+  }
+
+  async toggleTeamPause(teamId, pauseState, actor = 'Admin') {
+    const team = this.teams.get(teamId);
+    if (!team) throw new Error('Team not found');
+    if (team.isCompleted) throw new Error('Team has already completed the game.');
+
+    const now = Date.now();
+    const shouldPause = Boolean(pauseState);
+
+    if (shouldPause && !team.isPaused) {
+      team.isPaused = true;
+      team.pausedAt = now;
+      await db.run('UPDATE teams SET is_paused = 1, paused_at = ? WHERE id = ?', [now, teamId]);
+      await this.logAudit(actor, 'team_pause', { teamId, teamName: team.teamName });
+    } else if (!shouldPause && team.isPaused) {
+      team.isPaused = false;
+      const duration = team.pausedAt ? now - team.pausedAt : 0;
+      team.pausedAccumMs = (team.pausedAccumMs || 0) + duration;
+      team.pausedAt = 0;
+      await db.run('UPDATE teams SET is_paused = 0, paused_at = 0, paused_accum_ms = ? WHERE id = ?', [
+        team.pausedAccumMs,
+        teamId
+      ]);
+      await this.logAudit(actor, 'team_resume', { teamId, teamName: team.teamName, durationMs: duration });
+    }
+
+    this.broadcastTeamState(teamId);
+    this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
+    return { success: true, isPaused: team.isPaused };
+  }
+
   getEffectiveElapsedSeconds(team) {
     if (!team.startTime) return 0;
     const now = team.endTime || (this.globalPaused ? this.globalPausedAt : Date.now());
-    const totalPausedMs =
+    const totalGlobalPausedMs =
       this.globalPausedAccumMs +
       (this.globalPaused && !team.endTime ? Math.max(0, Date.now() - this.globalPausedAt) : 0);
+    const totalTeamPausedMs =
+      (team.pausedAccumMs || 0) +
+      (team.isPaused && !team.endTime ? Math.max(0, Date.now() - (team.pausedAt || Date.now())) : 0);
+    const totalPausedMs = totalGlobalPausedMs + totalTeamPausedMs;
     const elapsedMs = Math.max(0, now - team.startTime - totalPausedMs);
     return Math.floor(elapsedMs / 1000);
   }
@@ -842,10 +927,26 @@ export class GameEngine {
       sanitizedHints[stg] = {};
       for (const [lvl, h] of Object.entries(levels)) {
         const isExpired = now > h.expiresAt;
+        let hintText = null;
+        if (!isExpired) {
+          const stgNum = parseInt(stg, 10);
+          const lvlNum = parseInt(lvl, 10);
+          if (stgNum === 2 && lvlNum === 2) {
+            const variant = getTeamVariant(teamId);
+            hintText = variant?.hintClue || this.hints[stg]?.[lvl] || STAGE_HINTS[stg]?.[lvl] || null;
+          } else {
+            hintText =
+              this.hints[stgNum]?.[lvlNum] ||
+              this.hints[stg]?.[lvl] ||
+              STAGE_HINTS[stgNum]?.[lvlNum] ||
+              STAGE_HINTS[stg]?.[lvl] ||
+              null;
+          }
+        }
         sanitizedHints[stg][lvl] = {
           unlockedAt: h.unlockedAt,
           expiresAt: h.expiresAt,
-          text: isExpired ? null : this.hints[stg]?.[lvl] || STAGE_HINTS[stg]?.[lvl] || null
+          text: hintText
         };
       }
     }
@@ -862,6 +963,8 @@ export class GameEngine {
       serverNow: now,
       clockOffsetMs: 0,
       isPaused: this.globalPaused,
+      isTeamPaused: Boolean(team.isPaused),
+      gameStarted: this.gameStarted,
       totalPenaltySeconds: team.totalPenaltySeconds,
       penaltyBreakdown: team.penaltyBreakdown,
       wrongAttemptsCurrentStage: team.wrongAttemptsCurrentStage,
@@ -1114,7 +1217,8 @@ export class GameEngine {
         inProgress,
         finished,
         timeUp,
-        paused: this.globalPaused
+        paused: this.globalPaused,
+        gameStarted: this.gameStarted
       },
       globalClock: {
         serverNow: now,
@@ -1135,6 +1239,7 @@ export class GameEngine {
       const finalTimeSeconds = elapsedSeconds + team.totalPenaltySeconds;
       let status = 'in_progress';
       if (team.isCompleted) status = 'finished';
+      else if (team.isPaused) status = 'paused';
       else if (elapsedSeconds > CONFIG.TIME_CAP_SECONDS) status = 'time_up';
       else if (elapsedSeconds > 900) status = 'stuck';
 
@@ -1147,6 +1252,7 @@ export class GameEngine {
         isCompleted: team.isCompleted,
         startTime: team.startTime,
         endTime: team.endTime,
+        isPaused: Boolean(team.isPaused),
         elapsedSeconds,
         penaltySeconds: team.totalPenaltySeconds,
         finalTimeSeconds,

@@ -257,6 +257,23 @@ wss.on('connection', (ws, req) => {
     );
   }
 
+  ws.on('message', (raw) => {
+    try {
+      const data = JSON.parse(raw);
+      if (data.type === 'auth' && data.token) {
+        const session = gameEngine.verifyDeviceToken(data.token);
+        if (session) {
+          ws.teamId = session.teamId;
+          ws.memberId = session.memberId;
+          const state = gameEngine.getClientTeamState(session.teamId);
+          if (state) {
+            ws.send(JSON.stringify({ type: 'state:update', state }));
+          }
+        }
+      }
+    } catch (err) {}
+  });
+
   ws.on('close', () => {
     gameEngine.wsClients.delete(ws);
   });
