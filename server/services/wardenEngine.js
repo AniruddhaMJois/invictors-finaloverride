@@ -160,6 +160,16 @@ export function evaluateWardenPrompt(rawMessage, configOverride = {}) {
     };
   }
 
+  // Direct target fragment detection (e.g. typing ALPHA or ORBIT directly)
+  if (config.TARGET_FRAGMENT && lower.replace(/[^a-z0-9]/g, '') === config.TARGET_FRAGMENT.toLowerCase()) {
+    return {
+      reply: `Authentication verified! The vault fragment is indeed ${config.TARGET_FRAGMENT}. Click Submit below to clear Stage 3.`,
+      isSuccess: true,
+      isDecoy: false,
+      metadata: { directFragmentQuery: true }
+    };
+  }
+
   // 7. Anything else
   return {
     reply: 'State your role, your phrase and your task, clearly.',

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Button } from '../common/UI';
-import { showToast, wsManager } from '@/store';
+import { Card, Button, Input } from '../common/UI';
+import { showToast, wsManager, teamState } from '@/store';
 
 interface ChatMessage {
   id: string;
@@ -84,6 +84,11 @@ export const Stage3Module: React.FC = () => {
   const [localClearedTime, setLocalClearedTime] = useState<number>(0);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
+  // Direct Stage 3 Fragment Submission State
+  const [submitFragmentInput, setSubmitFragmentInput] = useState('');
+  const [isDirectSubmitting, setIsDirectSubmitting] = useState(false);
+  const [directFeedback, setDirectFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const cooldownTimerRef = useRef<any>(null);
@@ -149,11 +154,73 @@ export const Stage3Module: React.FC = () => {
     }, 50);
   }
 
+  async function handleDirectSubmit(ansToSubmit?: string) {
+    const raw = (ansToSubmit || submitFragmentInput).trim();
+    if (!raw) {
+      setDirectFeedback({ text: 'Please enter or select the fragment to submit.', isError: true });
+      return;
+    }
+
+    setIsDirectSubmitting(true);
+    setDirectFeedback(null);
+
+    try {
+      const res = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: 3,
+          answer: raw
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.error || 'Submission rejected.';
+        setDirectFeedback({ text: errMsg, isError: true });
+        showToast(errMsg, 'bad');
+        return;
+      }
+
+      if (data.correct) {
+        setDirectFeedback({ text: `✅ Stage 3 Cleared! Fragment: ${data.fragment}`, isError: false });
+        showToast(`✅ Stage 3 Cleared! Fragment: ${data.fragment}`, 'ok');
+        setSubmitFragmentInput('');
+
+        if (teamState.value) {
+          teamState.value = {
+            ...teamState.value,
+            currentStage: data.nextStage || 4,
+            fragments: {
+              ...teamState.value.fragments,
+              3: data.fragment
+            }
+          };
+        }
+      } else {
+        const msg = data.message || `❌ Invalid override key for Stage 3. (+${(data.penaltyAdded || 0) / 60}m penalty)`;
+        setDirectFeedback({ text: msg, isError: true });
+        showToast('Incorrect fragment', 'bad');
+      }
+    } catch (err: any) {
+      setDirectFeedback({ text: err.message || 'Network submission error.', isError: true });
+      showToast('Network error', 'bad');
+    } finally {
+      setIsDirectSubmitting(false);
+    }
+  }
+
   async function handleSend() {
     const text = inputText.trim();
     if (!text) {
       setErrorNotice('Message cannot be empty.');
       return;
+    }
+
+    // If the input is simply a candidate fragment (e.g. ALPHA, ORBIT, SOLAR, etc.), auto-submit!
+    const cleanToken = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (['ALPHA', 'ORBIT', 'SOLAR', 'TITAN', 'ZENITH'].includes(cleanToken)) {
+      handleDirectSubmit(cleanToken);
     }
 
     if (text.length > 400) {
@@ -459,19 +526,37 @@ export const Stage3Module: React.FC = () => {
                     {msg.text}
 
                     {codeToken && (
-                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                      <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.12)', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Button
+                          variant="gold"
+                          onClick={() => handleDirectSubmit(codeToken)}
+                          disabled={isDirectSubmitting}
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          🚀 Submit &quot;{codeToken}&quot; Now & Clear Stage 3
+                        </Button>
                         <Button
                           variant="ghost"
-                          onClick={() => copyToClipboard(codeToken)}
+                          onClick={() => {
+                            copyToClipboard(codeToken);
+                            setSubmitFragmentInput(codeToken);
+                          }}
                           style={{
-                            padding: '3px 8px',
+                            padding: '4px 10px',
                             fontSize: '11px',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px'
                           }}
                         >
-                          📋 Copy &quot;{codeToken}&quot;
+                          📋 Copy & Fill
                         </Button>
                       </div>
                     )}
@@ -617,6 +702,60 @@ export const Stage3Module: React.FC = () => {
             </span>
           </div>
         </div>
+      </Card>
+
+      {/* 3. Dedicated Stage 3 Solution Submission Card */}
+      <Card glow style={{ padding: '18px 20px', background: 'rgba(6, 18, 38, 0.95)', border: '1px solid var(--accent)' }}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleDirectSubmit();
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--gold)', letterSpacing: '0.5px' }}>
+              🔑 SUBMIT STAGE 3 FRAGMENT (OVERRIDE KEY):
+            </label>
+            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              Type or paste the verified fragment from WARDEN (e.g. ALPHA, ORBIT, SOLAR...)
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Input
+              value={submitFragmentInput}
+              onChange={(e) => {
+                setSubmitFragmentInput(e.target.value.toUpperCase());
+                setDirectFeedback(null);
+              }}
+              placeholder="ENTER STAGE 3 FRAGMENT (e.g. ALPHA)"
+              style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, textTransform: 'uppercase' }}
+            />
+            <Button
+              type="submit"
+              variant="gold"
+              disabled={isDirectSubmitting || !submitFragmentInput.trim()}
+              style={{ minWidth: '130px', height: '42px', fontWeight: 800 }}
+            >
+              {isDirectSubmitting ? 'Submitting...' : 'Submit ✅'}
+            </Button>
+          </div>
+
+          {directFeedback && (
+            <div
+              aria-live="polite"
+              style={{
+                fontSize: '13px',
+                fontWeight: 700,
+                color: directFeedback.isError ? 'var(--bad)' : 'var(--ok)',
+                marginTop: '4px'
+              }}
+            >
+              {directFeedback.text}
+            </div>
+          )}
+        </form>
       </Card>
     </div>
   );
