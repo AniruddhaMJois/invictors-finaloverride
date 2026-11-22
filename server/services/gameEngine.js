@@ -1146,12 +1146,6 @@ export class GameEngine {
     const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
-    if (team.currentStage !== 4) {
-      const err = new Error('Stage 4 content and stations are only accessible while on Stage 4.');
-      err.statusCode = 403;
-      throw err;
-    }
-
     const n = parseInt(stationNum, 10);
     if (![1, 2, 3].includes(n)) {
       const err = new Error('Invalid station number. Must be 1, 2, or 3.');

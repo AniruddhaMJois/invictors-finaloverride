@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, Button, Input } from '../common/UI';
-import { showToast, wsManager } from '@/store';
+import { showToast, wsManager, useSignal, teamState } from '@/store';
 
 interface LogRow {
   time: string;
@@ -16,6 +16,85 @@ interface LegendItem {
   shape: string;
   letter: string;
 }
+
+const DEFAULT_ACCESS_LOGS: LogRow[] = [
+  { time: '08:02', user: 'a.rao', door: 'Lab-1', status: 'GRANTED', clearance: 'L1' },
+  { time: '08:07', user: 'm.kumar', door: 'Lab-2', status: 'GRANTED', clearance: 'L4' },
+  { time: '08:15', user: 's.nair', door: 'Vault Gate', status: 'GRANTED', clearance: 'L8' },
+  { time: '08:21', user: 'r.iyer', door: 'Lab-1', status: 'GRANTED', clearance: 'L5' },
+  { time: '08:34', user: 'unknown', door: 'Vault Gate', status: 'DENIED', clearance: 'L9' },
+  { time: '08:40', user: 'p.shetty', door: 'Lab-3', status: 'GRANTED', clearance: 'L1' },
+  { time: '08:46', user: 'd.gowda', door: 'Lab-2', status: 'GRANTED', clearance: 'L4' },
+  { time: '08:53', user: 'k.bhat', door: 'Vault Gate', status: 'GRANTED', clearance: 'L8' },
+  { time: '09:01', user: 't.menon', door: 'Lab-1', status: 'GRANTED', clearance: 'L5' },
+  { time: '09:10', user: 'v.hegde', door: 'Lab-3', status: 'GRANTED', clearance: 'L1' }
+];
+
+const SET_STATION_CONFIG: Record<
+  string,
+  { s1Clearance: string; activeSymbol: string; legend: LegendItem[] }
+> = {
+  A: {
+    s1Clearance: 'L9',
+    activeSymbol: 'triangle',
+    legend: [
+      { shape: 'triangle', letter: 'X' },
+      { shape: 'circle', letter: 'O' },
+      { shape: 'square', letter: 'K' },
+      { shape: 'star', letter: 'S' },
+      { shape: 'diamond', letter: 'D' },
+      { shape: 'pentagon', letter: 'G' }
+    ]
+  },
+  B: {
+    s1Clearance: 'L8',
+    activeSymbol: 'star',
+    legend: [
+      { shape: 'star', letter: 'Z' },
+      { shape: 'triangle', letter: 'A' },
+      { shape: 'circle', letter: 'B' },
+      { shape: 'square', letter: 'C' },
+      { shape: 'diamond', letter: 'D' },
+      { shape: 'pentagon', letter: 'E' }
+    ]
+  },
+  C: {
+    s1Clearance: 'L7',
+    activeSymbol: 'diamond',
+    legend: [
+      { shape: 'diamond', letter: 'Y' },
+      { shape: 'triangle', letter: 'F' },
+      { shape: 'circle', letter: 'G' },
+      { shape: 'square', letter: 'H' },
+      { shape: 'star', letter: 'I' },
+      { shape: 'pentagon', letter: 'J' }
+    ]
+  },
+  D: {
+    s1Clearance: 'L6',
+    activeSymbol: 'square',
+    legend: [
+      { shape: 'square', letter: 'K' },
+      { shape: 'triangle', letter: 'L' },
+      { shape: 'circle', letter: 'M' },
+      { shape: 'star', letter: 'N' },
+      { shape: 'diamond', letter: 'P' },
+      { shape: 'pentagon', letter: 'Q' }
+    ]
+  },
+  E: {
+    s1Clearance: 'L5',
+    activeSymbol: 'circle',
+    legend: [
+      { shape: 'circle', letter: 'W' },
+      { shape: 'triangle', letter: 'R' },
+      { shape: 'square', letter: 'T' },
+      { shape: 'star', letter: 'U' },
+      { shape: 'diamond', letter: 'V' },
+      { shape: 'pentagon', letter: 'Y' }
+    ]
+  }
+};
 
 const ShapeSVG = ({ shape, size = 24, glow = false, color = 'var(--cyan)' }: { shape: string; size?: number; glow?: boolean; color?: string }) => {
   const style = glow
@@ -65,10 +144,28 @@ const ShapeSVG = ({ shape, size = 24, glow = false, color = 'var(--cyan)' }: { s
 };
 
 export const Stage4Module: React.FC = () => {
+  const state = useSignal(teamState);
+  const assignedSet = (((state as any)?.setId || 'A') as string).toUpperCase();
+  const setCfg = SET_STATION_CONFIG[assignedSet] || SET_STATION_CONFIG.A;
+
+  const initialLogs = DEFAULT_ACCESS_LOGS.map((log) =>
+    log.user === 'unknown' ? { ...log, clearance: setCfg.s1Clearance } : log
+  );
+
   const [solvedStations, setSolvedStations] = useState<number[]>([]);
-  const [logs, setLogs] = useState<LogRow[]>([]);
-  const [legend, setLegend] = useState<LegendItem[]>([]);
-  const [activeSymbol, setActiveSymbol] = useState<string>('triangle');
+  const [logs, setLogs] = useState<LogRow[]>(initialLogs);
+  const [legend, setLegend] = useState<LegendItem[]>(setCfg.legend);
+  const [activeSymbol, setActiveSymbol] = useState<string>(setCfg.activeSymbol);
+
+  // Sync station configuration whenever team's assigned set updates
+  useEffect(() => {
+    const cfg = SET_STATION_CONFIG[assignedSet] || SET_STATION_CONFIG.A;
+    setLogs(DEFAULT_ACCESS_LOGS.map((log) =>
+      log.user === 'unknown' ? { ...log, clearance: cfg.s1Clearance } : log
+    ));
+    setLegend(cfg.legend);
+    setActiveSymbol(cfg.activeSymbol);
+  }, [assignedSet]);
 
   // Input states per station
   const [s1Input, setS1Input] = useState('');
@@ -95,25 +192,25 @@ export const Stage4Module: React.FC = () => {
 
     async function loadStage4() {
       try {
-        const res = await fetch('/api/stage/4');
-        if (!res.ok) throw new Error('Failed to load Stage 4 data');
+        const res = await fetch(`/api/stage/4?set=${assignedSet}`);
+        if (!res.ok) return;
         const data = await res.json();
-        if (!mounted) return;
+        if (!mounted || !data) return;
 
         if (Array.isArray(data.solvedStations)) {
           setSolvedStations(data.solvedStations);
         }
-        if (data.station1 && Array.isArray(data.station1.logs)) {
+        if (data.station1 && Array.isArray(data.station1.logs) && data.station1.logs.length > 0) {
           setLogs(data.station1.logs);
         }
-        if (data.station3 && Array.isArray(data.station3.legend)) {
+        if (data.station3 && Array.isArray(data.station3.legend) && data.station3.legend.length > 0) {
           setLegend(data.station3.legend);
         }
         if (data.station3 && data.station3.activeSymbol) {
           setActiveSymbol(data.station3.activeSymbol);
         }
       } catch (err) {
-        console.error('Stage 4 load error:', err);
+        console.warn('Stage 4 load warning (using local set data):', err);
       }
     }
 
@@ -130,7 +227,7 @@ export const Stage4Module: React.FC = () => {
       mounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [assignedSet]);
 
   async function checkStation(stationNum: number, value: string) {
     if (!value.trim()) return;

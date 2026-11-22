@@ -18,11 +18,8 @@ export async function POST(request: Request) {
     }
 
     const team = gameEngine.teams.get(session.teamId);
-    if (!team || team.currentStage !== 4) {
-      return NextResponse.json(
-        { error: 'Stage 4 content and stations are only accessible while on Stage 4.' },
-        { status: 403 }
-      );
+    if (!team) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
 
     const body = await request.json();

@@ -93,22 +93,27 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
 export async function GET(request: Request) {
   await ensureInitialized();
   const session = await getTeamSession(request);
-  if (!session) {
-    return NextResponse.json({ error: 'Device token missing or expired.' }, { status: 401 });
+  const url = new URL(request.url);
+  const paramSet = url.searchParams.get('set');
+
+  let assignedSet = 'A';
+  let solvedStations: number[] = [];
+
+  if (session) {
+    if (!gameEngine.teams.has(session.teamId)) {
+      await gameEngine.loadTeamFromDb(session.teamId);
+    }
+
+    const team = gameEngine.teams.get(session.teamId);
+    if (team && team.setId) {
+      assignedSet = team.setId.toUpperCase();
+    }
+    solvedStations = gameEngine.getStage4SolvedStations(session.teamId);
+  } else if (paramSet && ['A', 'B', 'C', 'D', 'E'].includes(paramSet.toUpperCase())) {
+    assignedSet = paramSet.toUpperCase();
   }
 
-  if (!gameEngine.teams.has(session.teamId)) {
-    await gameEngine.loadTeamFromDb(session.teamId);
-  }
-
-  const team = gameEngine.teams.get(session.teamId);
-  if (!team) {
-    return NextResponse.json({ error: 'Team not found' }, { status: 404 });
-  }
-
-  const assignedSet = team.setId || 'A';
   const setCfg = SET_STATION_DATA[assignedSet] || SET_STATION_DATA.A;
-  const solvedStations = gameEngine.getStage4SolvedStations(session.teamId);
 
   const dynamicLogs = ACCESS_LOGS.map((log) =>
     log.user === 'unknown' ? { ...log, clearance: setCfg.s1Clearance } : log
