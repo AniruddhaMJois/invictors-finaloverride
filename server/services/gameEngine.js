@@ -97,7 +97,7 @@ export class GameEngine {
       const members = await db.all('SELECT id, name, is_leader FROM members WHERE team_id = ?', [t.id]);
       const progress = await db.all('SELECT * FROM progress WHERE team_id = ?', [t.id]);
       const hints = await db.all('SELECT * FROM hint_unlocks WHERE team_id = ?', [t.id]);
-      const violations = await db.all('SELECT * FROM violations WHERE team_id = ? AND waived = 0', [t.id]);
+      const violations = await db.all('SELECT * FROM violations WHERE team_id = ? AND waived = FALSE', [t.id]);
       const noteRow = await db.get('SELECT text FROM notes WHERE team_id = ?', [t.id]);
       const boundDevices = await db.all('SELECT token FROM devices WHERE team_id = ?', [t.id]);
 
@@ -324,7 +324,7 @@ export class GameEngine {
     const teamStartTime = (this.gameStarted || isTestRunner()) ? now : null;
 
     const teamInsert = await db.run(
-      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms) VALUES (?, ?, ?, 1, ?, ?, 0, 0, 0)',
+      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms) VALUES (?, ?, ?, 1, ?, ?, FALSE, 0, 0)',
       [cleanTeamName, coordinator, teamPin, teamStartTime, now]
     );
     const teamId = teamInsert.lastID;
@@ -333,7 +333,7 @@ export class GameEngine {
     for (let i = 0; i < cleanMembers.length; i++) {
       const mInsert = await db.run(
         'INSERT INTO members (team_id, name, is_leader) VALUES (?, ?, ?)',
-        [teamId, cleanMembers[i], i === 0 ? 1 : 0]
+        [teamId, cleanMembers[i], i === 0]
       );
       insertedMembers.push({ id: mInsert.lastID, name: cleanMembers[i], isLeader: i === 0 });
     }
@@ -498,7 +498,7 @@ export class GameEngine {
     // Log submission
     await db.run(
       'INSERT INTO submissions (team_id, stage, answer, at, ok) VALUES (?, ?, ?, ?, ?)',
-      [teamId, stage, rawAnswer, now, isCorrect ? 1 : 0]
+      [teamId, stage, rawAnswer, now, isCorrect]
     );
 
     if (isCorrect) {
@@ -517,7 +517,7 @@ export class GameEngine {
         team.verificationCode = this.calculateVerificationCode(team.teamName, team.startTime, now);
 
         await db.run(
-          'UPDATE teams SET is_completed = 1, end_time = ?, current_stage = 6 WHERE id = ?',
+          'UPDATE teams SET is_completed = TRUE, end_time = ?, current_stage = 6 WHERE id = ?',
           [now, teamId]
         );
       } else {
@@ -705,7 +705,7 @@ export class GameEngine {
     }
     this.lastViolationTime.set(teamId, now);
 
-    await db.run('INSERT INTO violations (team_id, at, penalty_seconds, waived) VALUES (?, ?, 120, 0)', [
+    await db.run('INSERT INTO violations (team_id, at, penalty_seconds, waived) VALUES (?, ?, 120, FALSE)', [
       teamId,
       now
     ]);
@@ -1036,7 +1036,7 @@ export class GameEngine {
     if (shouldPause && !team.isPaused) {
       team.isPaused = true;
       team.pausedAt = now;
-      await db.run('UPDATE teams SET is_paused = 1, paused_at = ? WHERE id = ?', [now, teamId]);
+      await db.run('UPDATE teams SET is_paused = TRUE, paused_at = ? WHERE id = ?', [now, teamId]);
       await supabaseSync.syncTeamPause(teamId, true, now, team.pausedAccumMs);
       await this.logAudit(actor, 'team_pause', { teamId, teamName: team.teamName });
     } else if (!shouldPause && team.isPaused) {
@@ -1044,7 +1044,7 @@ export class GameEngine {
       const duration = team.pausedAt ? now - team.pausedAt : 0;
       team.pausedAccumMs = (team.pausedAccumMs || 0) + duration;
       team.pausedAt = 0;
-      await db.run('UPDATE teams SET is_paused = 0, paused_at = 0, paused_accum_ms = ? WHERE id = ?', [
+      await db.run('UPDATE teams SET is_paused = FALSE, paused_at = 0, paused_accum_ms = ? WHERE id = ?', [
         team.pausedAccumMs,
         teamId
       ]);
@@ -1537,7 +1537,7 @@ export class GameEngine {
     if (v.waived) throw new Error('Violation is already waived.');
 
     const penaltyToWaive = v.penalty_seconds || 120;
-    await db.run('UPDATE violations SET waived = 1 WHERE id = ?', [vId]);
+    await db.run('UPDATE violations SET waived = TRUE WHERE id = ?', [vId]);
     await supabaseSync.syncWaivePenalty(vId);
 
     team.penaltyBreakdown.tabSwitches = Math.max(0, team.penaltyBreakdown.tabSwitches - penaltyToWaive);
@@ -1593,7 +1593,7 @@ export class GameEngine {
       team.isCompleted = true;
       team.endTime = now;
       team.verificationCode = this.calculateVerificationCode(team.teamName, team.startTime, now);
-      await db.run('UPDATE teams SET is_completed = 1, end_time = ?, current_stage = 6 WHERE id = ?', [now, teamId]);
+      await db.run('UPDATE teams SET is_completed = TRUE, end_time = ?, current_stage = 6 WHERE id = ?', [now, teamId]);
     } else {
       team.currentStage = current + 1;
       await db.run('UPDATE teams SET current_stage = ? WHERE id = ?', [team.currentStage, teamId]);
@@ -1636,7 +1636,7 @@ export class GameEngine {
     await db.run('UPDATE notes SET text = "" WHERE team_id = ?', [teamId]);
 
     await db.run(
-      'UPDATE teams SET current_stage = 1, is_completed = 0, start_time = ?, end_time = NULL WHERE id = ?',
+      'UPDATE teams SET current_stage = 1, is_completed = FALSE, start_time = ?, end_time = NULL WHERE id = ?',
       [now, teamId]
     );
 

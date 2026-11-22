@@ -79,9 +79,21 @@ export class DatabaseManager {
       'INSERT INTO notes ($1) VALUES ($2) ON CONFLICT (team_id) DO UPDATE SET text = EXCLUDED.text'
     );
 
-    // Ensure INSERT returns ID if not present
+    // Convert integer boolean representations to PostgreSQL BOOLEAN
+    translated = translated.replace(/,\s*is_paused,\s*paused_at,\s*paused_accum_ms\)\s*VALUES\s*\(([^)]+),\s*0,\s*0,\s*0\)/gi, ', is_paused, paused_at, paused_accum_ms) VALUES ($1, FALSE, 0, 0)');
+    translated = translated.replace(/,\s*waived\)\s*VALUES\s*\(([^)]+),\s*0\)/gi, ', waived) VALUES ($1, FALSE)');
+    translated = translated.replace(/waived\s*=\s*0/gi, 'waived = FALSE');
+    translated = translated.replace(/waived\s*=\s*1/gi, 'waived = TRUE');
+    translated = translated.replace(/is_paused\s*=\s*0/gi, 'is_paused = FALSE');
+    translated = translated.replace(/is_paused\s*=\s*1/gi, 'is_paused = TRUE');
+    translated = translated.replace(/is_completed\s*=\s*0/gi, 'is_completed = FALSE');
+    translated = translated.replace(/is_completed\s*=\s*1/gi, 'is_completed = TRUE');
+    translated = translated.replace(/is_leader\s*=\s*0/gi, 'is_leader = FALSE');
+    translated = translated.replace(/is_leader\s*=\s*1/gi, 'is_leader = TRUE');
+
+    // Ensure INSERT returns ID if not present (only for tables with an 'id' column)
     if (
-      /^\s*INSERT\s+INTO\s+(teams|members|devices|violations|submissions|audit|hint_unlocks)/i.test(translated) &&
+      /^\s*INSERT\s+INTO\s+(teams|members|violations|submissions|audit|hint_unlocks)/i.test(translated) &&
       !/RETURNING/i.test(translated)
     ) {
       translated += ' RETURNING id';
