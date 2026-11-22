@@ -154,6 +154,15 @@ const FONT = {
     0b10000,
     0b11111
   ],
+  '0': [
+    0b01110,
+    0b10001,
+    0b10011,
+    0b10101,
+    0b11001,
+    0b10001,
+    0b01110
+  ],
   '1': [
     0b00100,
     0b01100,
@@ -163,6 +172,24 @@ const FONT = {
     0b00100,
     0b01110
   ],
+  '2': [
+    0b01110,
+    0b10001,
+    0b00001,
+    0b00010,
+    0b00100,
+    0b01000,
+    0b11111
+  ],
+  '3': [
+    0b11110,
+    0b00001,
+    0b00001,
+    0b01110,
+    0b00001,
+    0b00001,
+    0b11110
+  ],
   '4': [
     0b10001,
     0b10001,
@@ -171,6 +198,42 @@ const FONT = {
     0b00001,
     0b00001,
     0b00001
+  ],
+  '5': [
+    0b11111,
+    0b10000,
+    0b10000,
+    0b11110,
+    0b00001,
+    0b00001,
+    0b11110
+  ],
+  '6': [
+    0b01110,
+    0b10000,
+    0b10000,
+    0b11110,
+    0b10001,
+    0b10001,
+    0b01110
+  ],
+  '7': [
+    0b11111,
+    0b00001,
+    0b00010,
+    0b00100,
+    0b01000,
+    0b01000,
+    0b01000
+  ],
+  '8': [
+    0b01110,
+    0b10001,
+    0b10001,
+    0b01110,
+    0b10001,
+    0b10001,
+    0b01110
   ],
   '9': [
     0b01110,
@@ -219,7 +282,7 @@ const FONT = {
   ]
 };
 
-export function generateCameraImage(outputPath) {
+export function generateCameraImage(outputPath, accessDigit = '1') {
   const width = 640;
   const height = 360;
 
@@ -287,10 +350,10 @@ export function generateCameraImage(outputPath) {
     setPixel(width - 30, y, 10, 24, 53);
   }
 
-  // 2. Draw HIDDEN TEXT in center: "ACCESS DIGIT: 1"
+  // 2. Draw HIDDEN TEXT in center: "ACCESS DIGIT: <accessDigit>"
   // #0d1c38 -> R: 13, G: 28, B: 56
   // Scaled 4x: (15 chars * 6 * 4) = 360px wide, height = 28px
-  const hiddenText = 'ACCESS DIGIT: 1';
+  const hiddenText = `ACCESS DIGIT: ${accessDigit}`;
   const hiddenScale = 4;
   const hiddenWidth = (hiddenText.length * 6 - 1) * hiddenScale;
   const hiddenX = Math.floor((width - hiddenWidth) / 2);
@@ -329,11 +392,32 @@ export function generateCameraImage(outputPath) {
 
   const pngBuffer = Buffer.concat([signature, ihdrChunk, idatChunk, iendChunk]);
   fs.writeFileSync(outputPath, pngBuffer);
-  console.log(`Generated camera feed PNG: ${outputPath} (${pngBuffer.length} bytes)`);
+  console.log(`Generated camera feed PNG: ${outputPath} (${pngBuffer.length} bytes, digit: ${accessDigit})`);
   return pngBuffer;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const targetPath = path.join(__dirname, '../server/assets/stage4/camera.png');
-  generateCameraImage(targetPath);
+  const setDigits = {
+    A: '6',
+    B: '2',
+    C: '5',
+    D: '8',
+    E: '4'
+  };
+
+  const publicDir = path.join(__dirname, '../public/assets/stage4');
+  const serverDir = path.join(__dirname, '../server/assets/stage4');
+  if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+  if (!fs.existsSync(serverDir)) fs.mkdirSync(serverDir, { recursive: true });
+
+  for (const [set, digit] of Object.entries(setDigits)) {
+    const pubFile = path.join(publicDir, `camera_${set}.png`);
+    const srvFile = path.join(serverDir, `camera_${set}.png`);
+    generateCameraImage(pubFile, digit);
+    fs.copyFileSync(pubFile, srvFile);
+  }
+
+  // Also default camera.png
+  fs.copyFileSync(path.join(publicDir, 'camera_A.png'), path.join(publicDir, 'camera.png'));
+  fs.copyFileSync(path.join(serverDir, 'camera_A.png'), path.join(serverDir, 'camera.png'));
 }

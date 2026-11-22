@@ -6,16 +6,16 @@ import { getTeamSession } from '@/lib/server/auth';
 export const dynamic = 'force-dynamic';
 
 const ACCESS_LOGS = [
-  { time: '08:02', user: 'a.rao', door: 'Lab-1', status: 'GRANTED', clearance: 'L2' },
-  { time: '08:07', user: 'm.kumar', door: 'Lab-2', status: 'GRANTED', clearance: 'L3' },
-  { time: '08:15', user: 's.nair', door: 'Vault Gate', status: 'GRANTED', clearance: 'L4' },
-  { time: '08:21', user: 'r.iyer', door: 'Lab-1', status: 'GRANTED', clearance: 'L2' },
-  { time: '08:34', user: 'unknown', door: 'Vault Gate', status: 'DENIED', clearance: 'L9' },
-  { time: '08:40', user: 'p.shetty', door: 'Lab-3', status: 'GRANTED', clearance: 'L3' },
-  { time: '08:46', user: 'd.gowda', door: 'Lab-2', status: 'GRANTED', clearance: 'L2' },
-  { time: '08:53', user: 'k.bhat', door: 'Vault Gate', status: 'GRANTED', clearance: 'L4' },
-  { time: '09:01', user: 't.menon', door: 'Lab-1', status: 'GRANTED', clearance: 'L3' },
-  { time: '09:10', user: 'v.hegde', door: 'Lab-3', status: 'GRANTED', clearance: 'L2' }
+  { time: '08:02', user: 'a.rao', door: 'Lab-1', status: 'GRANTED', clearance: 'L1' },
+  { time: '08:07', user: 'm.kumar', door: 'Lab-2', status: 'GRANTED', clearance: 'L4' },
+  { time: '08:15', user: 's.nair', door: 'Vault Gate', status: 'GRANTED', clearance: 'L8' },
+  { time: '08:21', user: 'r.iyer', door: 'Lab-1', status: 'GRANTED', clearance: 'L5' },
+  { time: '08:34', user: 'unknown', door: 'Vault Gate', status: 'DENIED', clearance: 'L3' },
+  { time: '08:40', user: 'p.shetty', door: 'Lab-3', status: 'GRANTED', clearance: 'L1' },
+  { time: '08:46', user: 'd.gowda', door: 'Lab-2', status: 'GRANTED', clearance: 'L4' },
+  { time: '08:53', user: 'k.bhat', door: 'Vault Gate', status: 'GRANTED', clearance: 'L8' },
+  { time: '09:01', user: 't.menon', door: 'Lab-1', status: 'GRANTED', clearance: 'L5' },
+  { time: '09:10', user: 'v.hegde', door: 'Lab-3', status: 'GRANTED', clearance: 'L1' }
 ];
 
 const SYMBOL_LEGEND = [
@@ -29,7 +29,7 @@ const SYMBOL_LEGEND = [
 
 const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: string; legend: Array<{ shape: string; letter: string }> }> = {
   A: {
-    s1Clearance: 'L9',
+    s1Clearance: 'L3',
     activeSymbol: 'triangle',
     legend: [
       { shape: 'triangle', letter: 'X' },
@@ -41,7 +41,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   B: {
-    s1Clearance: 'L8',
+    s1Clearance: 'L7',
     activeSymbol: 'star',
     legend: [
       { shape: 'star', letter: 'Z' },
@@ -53,7 +53,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   C: {
-    s1Clearance: 'L7',
+    s1Clearance: 'L9',
     activeSymbol: 'diamond',
     legend: [
       { shape: 'diamond', letter: 'Y' },
@@ -65,7 +65,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   D: {
-    s1Clearance: 'L6',
+    s1Clearance: 'L2',
     activeSymbol: 'square',
     legend: [
       { shape: 'square', letter: 'K' },
@@ -77,7 +77,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   E: {
-    s1Clearance: 'L5',
+    s1Clearance: 'L6',
     activeSymbol: 'circle',
     legend: [
       { shape: 'circle', letter: 'W' },
@@ -102,11 +102,8 @@ export async function GET(request: Request) {
   }
 
   const team = gameEngine.teams.get(session.teamId);
-  if (!team || team.currentStage !== 4) {
-    return NextResponse.json(
-      { error: 'Stage 4 content and stations are only accessible while on Stage 4.' },
-      { status: 403 }
-    );
+  if (!team) {
+    return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
 
   const assignedSet = team.setId || 'A';
@@ -141,7 +138,7 @@ export async function GET(request: Request) {
       title: '🔦 Dark Camera Feed',
       subtitle: 'Light up the footage',
       instruction: 'Camera 4 is almost black. Slide the brightness up to see what is hidden.',
-      imageUrl: '/api/stage/4/camera.png'
+      imageUrl: `/api/stage/4/camera.png?set=${assignedSet}`
     },
     station3: {
       id: 3,

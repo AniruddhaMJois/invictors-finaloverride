@@ -107,7 +107,7 @@ export const Stage3Module: React.FC = () => {
     async function loadStage3() {
       try {
         const res = await fetch('/api/stage/3');
-        if (!res.ok) throw new Error('Failed to load Stage 3 data');
+        if (!res.ok) return;
         const data = await res.json();
         if (!mounted) return;
 
@@ -115,7 +115,7 @@ export const Stage3Module: React.FC = () => {
           setMessages(data.chatHistory);
         }
       } catch (err) {
-        console.error('Stage 3 load error:', err);
+        console.warn('Stage 3 load non-blocking notice:', err);
       }
     }
 
@@ -702,60 +702,6 @@ export const Stage3Module: React.FC = () => {
             </span>
           </div>
         </div>
-      </Card>
-
-      {/* 3. Dedicated Stage 3 Solution Submission Card */}
-      <Card glow style={{ padding: '18px 20px', background: 'rgba(6, 18, 38, 0.95)', border: '1px solid var(--accent)' }}>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleDirectSubmit();
-          }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-            <label style={{ fontSize: '13px', fontWeight: 800, color: 'var(--gold)', letterSpacing: '0.5px' }}>
-              🔑 SUBMIT STAGE 3 FRAGMENT (OVERRIDE KEY):
-            </label>
-            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
-              Type or paste the verified fragment from WARDEN (e.g. ALPHA, ORBIT, SOLAR...)
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Input
-              value={submitFragmentInput}
-              onChange={(e) => {
-                setSubmitFragmentInput(e.target.value.toUpperCase());
-                setDirectFeedback(null);
-              }}
-              placeholder="ENTER STAGE 3 FRAGMENT (e.g. ALPHA)"
-              style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 700, textTransform: 'uppercase' }}
-            />
-            <Button
-              type="submit"
-              variant="gold"
-              disabled={isDirectSubmitting || !submitFragmentInput.trim()}
-              style={{ minWidth: '130px', height: '42px', fontWeight: 800 }}
-            >
-              {isDirectSubmitting ? 'Submitting...' : 'Submit ✅'}
-            </Button>
-          </div>
-
-          {directFeedback && (
-            <div
-              aria-live="polite"
-              style={{
-                fontSize: '13px',
-                fontWeight: 700,
-                color: directFeedback.isError ? 'var(--bad)' : 'var(--ok)',
-                marginTop: '4px'
-              }}
-            >
-              {directFeedback.text}
-            </div>
-          )}
-        </form>
       </Card>
     </div>
   );

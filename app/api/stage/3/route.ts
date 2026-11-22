@@ -17,11 +17,8 @@ export async function GET(request: Request) {
   }
 
   const team = gameEngine.teams.get(session.teamId);
-  if (!team || team.currentStage !== 3) {
-    return NextResponse.json(
-      { error: 'Stage 3 content and WARDEN console are only accessible while on Stage 3.' },
-      { status: 403 }
-    );
+  if (!team) {
+    return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
 
   const chatHistory = gameEngine.getStageChat(session.teamId);
