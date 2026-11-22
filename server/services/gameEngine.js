@@ -690,9 +690,20 @@ export class GameEngine {
       throw new Error('Time cap reached (90 mins). Challenge is over.');
     }
 
-    if (team.currentStage !== stage) {
+    const activeStage = (stage && !isNaN(parseInt(stage, 10))) ? parseInt(stage, 10) : team.currentStage;
+    if (activeStage < team.currentStage) {
+      return {
+        correct: true,
+        fragment: team.fragments[activeStage] || STAGE_ANSWERS[activeStage],
+        nextStage: team.currentStage,
+        isCompleted: Boolean(team.isCompleted),
+        message: `Stage ${activeStage} is already cleared! Proceeding to Stage ${team.currentStage}.`
+      };
+    }
+    if (activeStage !== team.currentStage) {
       throw new Error(`Invalid stage submission. Current stage is ${team.currentStage}.`);
     }
+    stage = activeStage;
 
     // Rate limit: 1s cooldown
     const now = Date.now();

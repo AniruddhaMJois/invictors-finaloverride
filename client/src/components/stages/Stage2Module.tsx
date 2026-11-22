@@ -63,6 +63,13 @@ export const Stage2Module: FunctionalComponent = () => {
   // Reset Confirmation Modal state
   const [resetModalOpen, setResetModalOpen] = useState(false);
 
+  // In-Module Stage 2 Direct Submission State
+  const [stage2Input, setStage2Input] = useState('');
+  const [isSubmittingStage2, setIsSubmittingStage2] = useState(false);
+  const [stage2Feedback, setStage2Feedback] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [isEditingBuffer, setIsEditingBuffer] = useState(false);
+  const [editBufferText, setEditBufferText] = useState('');
+
   // Typewriter animation ref
   const animFrameRef = useRef<any>(null);
   const syncTimeoutRef = useRef<any>(null);
@@ -301,6 +308,95 @@ export const Stage2Module: FunctionalComponent = () => {
     return 'var(--line)';
   };
 
+  // Dynamically extract fragment and access phrase from current text
+  const fragmentMatch = currentText.match(/FRAGMENT\s+(?:TWO|2)\s+IS\s+([A-Z0-9]+)/i);
+  const phraseMatch = currentText.match(/ACCESS\s+PHRASE\s+IS\s+([A-Z0-9]+)/i);
+  const detectedFragment = fragmentMatch ? fragmentMatch[1].toUpperCase() : null;
+  const detectedPhrase = phraseMatch ? phraseMatch[1].toUpperCase() : null;
+
+  async function handleStage2Submit(e?: any, customAns?: string) {
+    if (e && e.preventDefault) e.preventDefault();
+    const ans = (customAns || stage2Input).trim();
+    if (!ans || isSubmittingStage2) return;
+
+    setIsSubmittingStage2(true);
+    setStage2Feedback(null);
+
+    try {
+      const res = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: 2,
+          answer: ans
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setStage2Feedback({ text: data.error || 'Submission rejected.', isError: true });
+        return;
+      }
+
+      if (data.correct) {
+        setStage2Feedback({
+          text: `✅ Mission 2 cleared! Moving to Stage ${data.nextStage || 3}...`,
+          isError: false
+        });
+        showToast(`🎉 Mission 2 cleared! Fragment: ${data.fragment || ans}`, 'ok');
+        setStage2Input('');
+
+        if (data.nextStage) {
+          teamState.value = {
+            ...state,
+            currentStage: data.nextStage,
+            isCompleted: Boolean(data.isCompleted),
+            verificationCode: data.verificationCode || (state as any)?.verificationCode,
+            fragments: {
+              ...((state as any)?.fragments || {}),
+              2: data.fragment || ans
+            }
+          };
+          window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: '' }));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      } else {
+        setStage2Feedback({
+          text: data.message || `Not quite, try again 🙂 (Attempts: ${data.attempts || 1})`,
+          isError: true
+        });
+      }
+    } catch (err: any) {
+      setStage2Feedback({ text: err.message || 'Submission error.', isError: true });
+    } finally {
+      setIsSubmittingStage2(false);
+    }
+  }
+
+  function handleAutoFill(fragment: string) {
+    setStage2Input(fragment);
+    window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: fragment }));
+    showToast(`Filled "${fragment}" into solution bar!`, 'ok');
+  }
+
+  function handleApplyBuffer() {
+    setIsEditingBuffer(false);
+    const next = editBufferText;
+    const prev = currentText;
+    const step: HistoryStep = {
+      tool: 'Custom Edit',
+      beforePreview: prev.slice(0, 40).replace(/\n/g, ' '),
+      afterPreview: next.slice(0, 40).replace(/\n/g, ' '),
+      previousText: prev
+    };
+    const newHistory = [step, ...history].slice(0, 50);
+    setCurrentText(next);
+    revealText(next);
+    setHistory(newHistory);
+    syncWorkbench(next, newHistory);
+    showToast('Applied custom text to workbench', 'ok');
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* 1. Story & Mission Directives */}
@@ -391,6 +487,20 @@ export const Stage2Module: FunctionalComponent = () => {
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button
+                variant={isEditingBuffer ? 'gold' : 'ghost'}
+                onClick={() => {
+                  if (isEditingBuffer) {
+                    handleApplyBuffer();
+                  } else {
+                    setEditBufferText(currentText);
+                    setIsEditingBuffer(true);
+                  }
+                }}
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+              >
+                {isEditingBuffer ? '💾 Apply Edit' : '✏️ Edit / Paste'}
+              </Button>
+              <Button
                 variant="ghost"
                 onClick={() => copyToClipboard(currentText, 'Workbench Buffer')}
                 style={{ padding: '6px 12px', fontSize: '12px' }}
@@ -476,36 +586,60 @@ export const Stage2Module: FunctionalComponent = () => {
               </div>
               <Button
                 variant="gold"
-                onClick={() => copyToClipboard('AURORA', 'Access Phrase')}
+                onClick={() => copyToClipboard(detectedPhrase || 'AURORA', 'Access Phrase')}
                 style={{ padding: '4px 10px', fontSize: '11px', whiteSpace: 'nowrap' }}
               >
-                Copy "AURORA"
+                Copy &quot;{detectedPhrase || 'AURORA'}&quot;
               </Button>
             </div>
           )}
 
-          {/* Current Buffer Monospace Area */}
+          {/* Current Buffer Monospace Area / Editable Buffer */}
           <div style={{ position: 'relative' }}>
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '14px',
-                background: 'var(--bg)',
-                padding: '14px',
-                borderRadius: '8px',
-                border: errorMsg ? '1px solid var(--bad)' : '1px solid var(--line)',
-                color: readabilityScore >= 80 ? 'var(--cyan)' : 'var(--txt)',
-                wordBreak: 'break-all',
-                whiteSpace: 'pre-wrap',
-                minHeight: '110px',
-                maxHeight: '260px',
-                overflowY: 'auto',
-                lineHeight: '1.6',
-                userSelect: 'text'
-              }}
-            >
-              {displayedText || '(empty buffer)'}
-            </div>
+            {isEditingBuffer ? (
+              <textarea
+                value={editBufferText}
+                onChange={(e: any) => setEditBufferText(e.target.value)}
+                placeholder="Paste or type payload/ciphertext directly here..."
+                rows={5}
+                style={{
+                  width: '100%',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '14px',
+                  background: 'var(--bg)',
+                  padding: '14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--accent)',
+                  color: 'var(--txt)',
+                  wordBreak: 'break-all',
+                  minHeight: '110px',
+                  maxHeight: '260px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '14px',
+                  background: 'var(--bg)',
+                  padding: '14px',
+                  borderRadius: '8px',
+                  border: errorMsg ? '1px solid var(--bad)' : '1px solid var(--line)',
+                  color: readabilityScore >= 80 ? 'var(--cyan)' : 'var(--txt)',
+                  wordBreak: 'break-all',
+                  whiteSpace: 'pre-wrap',
+                  minHeight: '110px',
+                  maxHeight: '260px',
+                  overflowY: 'auto',
+                  lineHeight: '1.6',
+                  userSelect: 'text'
+                }}
+              >
+                {displayedText || '(empty buffer)'}
+              </div>
+            )}
 
             {/* Error Banner */}
             {errorMsg && (
@@ -587,6 +721,103 @@ export const Stage2Module: FunctionalComponent = () => {
                 );
               })}
             </div>
+          </div>
+
+          {/* Direct Stage 2 Key Submission Card inside the Module */}
+          <div
+            style={{
+              background: 'rgba(5, 14, 30, 0.95)',
+              border: '2px solid var(--gold)',
+              borderRadius: '10px',
+              padding: '16px 20px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)'
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '10px',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>🔑</span>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    color: 'var(--gold)'
+                  }}
+                >
+                  STAGE 2 OVERRIDE KEY SUBMISSION
+                </span>
+              </div>
+              {detectedFragment && (
+                <Button
+                  variant="gold"
+                  onClick={() => handleStage2Submit(undefined, detectedFragment)}
+                  disabled={isSubmittingStage2}
+                  style={{ padding: '4px 12px', fontSize: '12px' }}
+                >
+                  ⚡ One-Click Submit &quot;{detectedFragment}&quot;
+                </Button>
+              )}
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'var(--muted)', margin: '0 0 12px 0' }}>
+              Decrypted payload reveals: &quot;FRAGMENT TWO IS [KEY]&quot;. Enter the 3-character fragment below to unlock Mission 3. (Note: &quot;{detectedPhrase || 'AURORA'}&quot; is the Mission 3 access phrase).
+            </p>
+
+            <form
+              onSubmit={(e: any) => handleStage2Submit(e)}
+              style={{ display: 'flex', gap: '10px', alignItems: 'center' }}
+            >
+              <Input
+                value={stage2Input}
+                onChange={(e: any) => {
+                  setStage2Input(e.target.value);
+                  if (stage2Feedback) setStage2Feedback(null);
+                }}
+                placeholder="Enter Stage 2 fragment (e.g. 7K2)"
+                style={{ flex: 1 }}
+              />
+              {detectedFragment && stage2Input !== detectedFragment && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => handleAutoFill(detectedFragment)}
+                  style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '8px 12px' }}
+                >
+                  Auto-fill {detectedFragment}
+                </Button>
+              )}
+              <Button
+                type="submit"
+                variant="gold"
+                disabled={isSubmittingStage2 || !stage2Input.trim()}
+                style={{ minWidth: '130px' }}
+              >
+                {isSubmittingStage2 ? 'Checking...' : 'Submit Key ✅'}
+              </Button>
+            </form>
+
+            {stage2Feedback && (
+              <div
+                aria-live="polite"
+                style={{
+                  marginTop: '10px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: stage2Feedback.isError ? 'var(--bad)' : 'var(--ok)'
+                }}
+              >
+                {stage2Feedback.text}
+              </div>
+            )}
           </div>
 
           {/* History Stack */}

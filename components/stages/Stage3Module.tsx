@@ -196,6 +196,9 @@ export const Stage3Module: React.FC = () => {
               3: data.fragment
             }
           };
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
         }
       } else {
         const msg = data.message || `❌ Invalid override key for Stage 3. (+${(data.penaltyAdded || 0) / 60}m penalty)`;

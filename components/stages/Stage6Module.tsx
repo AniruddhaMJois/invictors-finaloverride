@@ -58,8 +58,13 @@ export const Stage6Module: React.FC = () => {
   const finalKey = `FO{${keyBody}}#${checksum}`;
 
   function copyToClipboard(text: string, label: string) {
-    navigator.clipboard.writeText(text);
-    showToast(`Copied ${label} to clipboard!`, 'ok');
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: text }));
+    }
+    showToast(`Copied & filled ${label} into solution bar!`, 'ok');
   }
 
   return (
@@ -268,13 +273,25 @@ export const Stage6Module: React.FC = () => {
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--cyan)' }}>
                 ASSEMBLED MASTER OVERRIDE KEY
               </span>
-              <Button
-                variant="gold"
-                onClick={() => copyToClipboard(finalKey, 'Master Override Key')}
-                style={{ padding: '4px 12px', fontSize: '12px' }}
-              >
-                📋 Copy Master Key
-              </Button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  variant="gold"
+                  onClick={() => copyToClipboard(finalKey, 'Master Override Key')}
+                  style={{ padding: '4px 12px', fontSize: '12px' }}
+                >
+                  Fill into Solution Bar ➡️
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    navigator.clipboard.writeText(finalKey);
+                    showToast('Copied Master Key to clipboard!', 'ok');
+                  }}
+                  style={{ padding: '4px 12px', fontSize: '12px' }}
+                >
+                  📋 Copy
+                </Button>
+              </div>
             </div>
 
             <div

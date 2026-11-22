@@ -168,13 +168,36 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
 
       if (data.correct) {
         const clearedStage = viewStage;
+        const next = data.nextStage || clearedStage + 1;
         setFeedback({
-          text: `✅ Mission ${clearedStage} cleared! Moving to Stage ${data.nextStage || clearedStage + 1}...`,
+          text: `✅ Mission ${clearedStage} cleared! Moving to Stage ${next}...`,
           isError: false
         });
         showToast(`🎉 Mission ${clearedStage} cleared! Fragment: ${data.fragment || ''}`, 'ok');
         setAnswerInput('');
         setTimeout(() => setFeedback(null), 3500);
+
+        if (data.nextStage) {
+          setViewStage(data.nextStage);
+          teamState.value = {
+            ...state,
+            currentStage: data.nextStage,
+            isCompleted: Boolean(data.isCompleted),
+            verificationCode: data.verificationCode || (state as any)?.verificationCode,
+            fragments: {
+              ...((state as any)?.fragments || {}),
+              [clearedStage]: data.fragment
+            }
+          };
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (data.isCompleted) {
+          teamState.value = {
+            ...state,
+            isCompleted: true,
+            verificationCode: data.verificationCode || (state as any)?.verificationCode
+          };
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
       } else {
         const msg = data.message || `Not quite, try again 🙂 (Attempts: ${data.attempts}, penalty after 5)`;
         setFeedback({

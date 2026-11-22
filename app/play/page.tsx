@@ -266,10 +266,11 @@ export default function GameDashboardPage() {
       }
 
       if (data.correct) {
-        const clearedStage = state.currentStage;
+        const clearedStage = viewStage;
+        const next = data.nextStage || clearedStage + 1;
         showToast(`🎉 Mission ${clearedStage} cleared! Fragment: ${data.fragment || ''}`, 'ok');
         setFeedback({
-          text: `✅ Mission ${clearedStage} cleared! Moving to Stage ${data.nextStage || clearedStage}...`,
+          text: `✅ Mission ${clearedStage} cleared! Moving to Stage ${next}...`,
           isError: false
         });
         setTimeout(() => setFeedback(null), 3500);
@@ -285,15 +286,17 @@ export default function GameDashboardPage() {
             verificationCode: data.verificationCode || state.verificationCode,
             fragments: {
               ...state.fragments,
-              [state.currentStage]: data.fragment
+              [clearedStage]: data.fragment
             }
           };
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         } else if (data.isCompleted) {
           teamState.value = {
             ...state,
             isCompleted: true,
             verificationCode: data.verificationCode || state.verificationCode
           };
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         // Fetch authoritative server state immediately
