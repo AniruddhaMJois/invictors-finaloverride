@@ -5,16 +5,14 @@ import { getTeamVariant } from '../../shared/ciphers.js';
 export const stage2Router = express.Router();
 
 // Middleware to ensure team is strictly on Stage 2
-function requireStage2(req, res, next) {
-  const team = gameEngine.teams.get(req.teamId);
-  if (!team) {
-    return res.status(404).json({ error: 'Team not found' });
+async function requireStage2(req, res, next) {
+  let team = gameEngine.teams.get(req.teamId);
+  if (!team || team.currentStage !== 2) {
+    team = await gameEngine.loadTeamFromDb(req.teamId);
   }
 
-  if (team.currentStage !== 2) {
-    return res.status(403).json({
-      error: 'Stage 2 content and workbench are only accessible while on Stage 2.'
-    });
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
   }
 
   next();

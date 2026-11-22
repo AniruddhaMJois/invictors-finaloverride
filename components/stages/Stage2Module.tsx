@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Button, Input, Modal } from '../common/UI';
-import { showToast, wsManager } from '@/store';
+import { showToast, wsManager, useSignal, teamState } from '@/store';
 import {
   base64Decode,
   hexDecode,
@@ -13,7 +13,8 @@ import {
   caesarPlus3,
   vigenereDecrypt,
   calculateReadability,
-  CipherResult
+  CipherResult,
+  SET_STAGE2_VARIANTS
 } from '@/shared/ciphers';
 
 interface HistoryStep {
@@ -46,6 +47,7 @@ const DEFAULT_TOOLS = [
 ];
 
 export const Stage2Module: React.FC = () => {
+  const state = useSignal(teamState);
   const [initialPayload, setInitialPayload] = useState<string>('');
   const [currentText, setCurrentText] = useState<string>('');
   const [displayedText, setDisplayedText] = useState<string>('');
@@ -74,11 +76,20 @@ export const Stage2Module: React.FC = () => {
     async function loadStage2() {
       try {
         const res = await fetch('/api/stage/2');
-        if (!res.ok) {
-          throw new Error('Failed to load Stage 2 data');
+        let data: any = null;
+        if (res.ok) {
+          data = await res.json();
+        } else {
+          console.warn('Stage 2 API returned non-OK status', res.status, '— using local set payload');
+          const fallbackSet = (((state as any)?.setId || 'A') as string).toUpperCase();
+          const fallbackVariant = SET_STAGE2_VARIANTS[fallbackSet] || SET_STAGE2_VARIANTS.A;
+          data = {
+            payload: fallbackVariant.payload,
+            tools: DEFAULT_TOOLS,
+            workbench: { currentText: fallbackVariant.payload, history: [] }
+          };
         }
-        const data = await res.json();
-        if (!mounted) return;
+        if (!mounted || !data) return;
 
         setInitialPayload(data.payload || '');
         if (Array.isArray(data.tools) && data.tools.length > 0) {
@@ -94,7 +105,15 @@ export const Stage2Module: React.FC = () => {
           setHistory(savedWorkbench.history);
         }
       } catch (err: any) {
-        console.error('Stage 2 load error:', err);
+        console.warn('Stage 2 load network exception, applying local set payload:', err?.message);
+        const fallbackSet = (((state as any)?.setId || 'A') as string).toUpperCase();
+        const fallbackVariant = SET_STAGE2_VARIANTS[fallbackSet] || SET_STAGE2_VARIANTS.A;
+        if (mounted) {
+          setInitialPayload(fallbackVariant.payload);
+          setCurrentText(fallbackVariant.payload);
+          setDisplayedText(fallbackVariant.payload);
+          setToolsList(DEFAULT_TOOLS);
+        }
       }
     }
 

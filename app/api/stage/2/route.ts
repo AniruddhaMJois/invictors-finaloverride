@@ -38,19 +38,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Device token missing or expired.' }, { status: 401 });
   }
 
-  if (!gameEngine.teams.has(session.teamId)) {
-    await gameEngine.loadTeamFromDb(session.teamId);
-  }
-
-  const team = gameEngine.teams.get(session.teamId);
+  let team = gameEngine.teams.get(session.teamId);
   if (!team || team.currentStage !== 2) {
-    return NextResponse.json(
-      { error: 'Stage 2 content and workbench are only accessible while on Stage 2.' },
-      { status: 403 }
-    );
+    await gameEngine.loadTeamFromDb(session.teamId);
+    team = gameEngine.teams.get(session.teamId);
   }
 
-  const variant = getTeamVariant(session.teamId, team?.setId);
+  if (!team) {
+    return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+  }
+
+  const assignedSet = (team.setId || 'A').toUpperCase();
+  const variant = getTeamVariant(session.teamId, assignedSet);
   let workbench = gameEngine.getStageWorkbench(session.teamId, 2);
 
   if (!workbench) {

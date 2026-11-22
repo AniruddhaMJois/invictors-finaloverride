@@ -829,7 +829,7 @@ export class GameEngine {
 
     const getHintContent = () => {
       if (stage === 2 && hintNumber === 2) {
-        const variant = getTeamVariant(teamId);
+        const variant = getTeamVariant(teamId, team.setId);
         if (variant && variant.hintClue) return variant.hintClue;
       }
       return this.hints[stage]?.[hintNumber] || STAGE_HINTS[stage][hintNumber];
@@ -1329,7 +1329,7 @@ export class GameEngine {
           const stgNum = parseInt(stg, 10);
           const lvlNum = parseInt(lvl, 10);
           if (stgNum === 2 && lvlNum === 2) {
-            const variant = getTeamVariant(teamId);
+            const variant = getTeamVariant(teamId, team.setId);
             hintText = variant?.hintClue || this.hints[stg]?.[lvl] || STAGE_HINTS[stg]?.[lvl] || null;
           } else {
             hintText =
