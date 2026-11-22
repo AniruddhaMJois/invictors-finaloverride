@@ -441,11 +441,12 @@ export class GameEngine {
 
       // 1. Direct number extraction: "Team 15", "15", "Team 01", "Team-15", "Trinetra (Team 1)", etc.
       const numMatch = cleanTeamName.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || cleanTeamName.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
+      let extractedTeamNum = null;
       if (numMatch) {
-        const teamNum = parseInt(numMatch[1], 10);
+        extractedTeamNum = parseInt(numMatch[1], 10);
         matchedAllotment = await db.get(
           'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE team_number = ?',
-          [teamNum]
+          [extractedTeamNum]
         );
       }
 
@@ -477,6 +478,12 @@ export class GameEngine {
 
       if (matchedAllotment && matchedAllotment.set_id) {
         assignedSetId = matchedAllotment.set_id;
+      } else if (extractedTeamNum) {
+        // Guaranteed fallback: 1-6 -> Set A, 7-12 -> Set B, 13-18 -> Set C, 19-23 -> Set D
+        if (extractedTeamNum >= 1 && extractedTeamNum <= 6) assignedSetId = 'A';
+        else if (extractedTeamNum >= 7 && extractedTeamNum <= 12) assignedSetId = 'B';
+        else if (extractedTeamNum >= 13 && extractedTeamNum <= 18) assignedSetId = 'C';
+        else if (extractedTeamNum >= 19 && extractedTeamNum <= 23) assignedSetId = 'D';
       }
     } catch (e) {
       console.warn('Could not query team_allotments:', e.message);

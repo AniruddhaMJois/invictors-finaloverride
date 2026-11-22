@@ -37,11 +37,16 @@ const OFFICIAL_TEAMS = [
 function detectAssignedTeam(input: string) {
   const clean = (input || '').trim();
   if (!clean) return null;
-  const numMatch = clean.match(/^(?:team\s*[-_#]?\s*)?0*(\d{1,2})$/i);
+  const numMatch = clean.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || clean.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
   if (numMatch) {
     const num = parseInt(numMatch[1], 10);
     const found = OFFICIAL_TEAMS.find((t) => t.num === num);
     if (found) return found;
+    // Direct range fallback: 1-6 Set A, 7-12 Set B, 13-18 Set C, 19-23 Set D
+    if (num >= 1 && num <= 6) return { num, name: `Team ${num}`, set: 'A' };
+    if (num >= 7 && num <= 12) return { num, name: `Team ${num}`, set: 'B' };
+    if (num >= 13 && num <= 18) return { num, name: `Team ${num}`, set: 'C' };
+    if (num >= 19 && num <= 23) return { num, name: `Team ${num}`, set: 'D' };
   }
   const cleanLower = clean.toLowerCase();
   const direct = OFFICIAL_TEAMS.find((t) => t.name.toLowerCase() === cleanLower);
