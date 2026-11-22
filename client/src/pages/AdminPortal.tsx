@@ -692,7 +692,7 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
                       </td>
                     </tr>
                   ) : (
-                    filteredTeams.map((t) => {
+                    filteredTeams.map((t, idx) => {
                       const elMin = Math.floor(t.elapsedSeconds / 60);
                       const elSec = t.elapsedSeconds % 60;
                       const totMin = Math.floor(t.finalTimeSeconds / 60);
@@ -700,7 +700,7 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
 
                       return (
                         <tr
-                          key={t.id}
+                          key={`admin-team-${t.id || idx}`}
                           className="clickable"
                           onClick={() => loadTeamTimeline(t.id)}
                           style={{

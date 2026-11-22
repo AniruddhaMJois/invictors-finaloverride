@@ -1425,7 +1425,10 @@ export class GameEngine {
 
   getLeaderboard() {
     const entries = [];
+    const seen = new Set();
     for (const team of this.teams.values()) {
+      if (!team || !team.id || seen.has(team.id)) continue;
+      seen.add(team.id);
       const elapsedSeconds = this.getEffectiveElapsedSeconds(team);
       const finalRankTimeSeconds = elapsedSeconds + team.totalPenaltySeconds;
 
@@ -1718,7 +1721,10 @@ export class GameEngine {
 
   getAdminTeams() {
     const list = [];
+    const seen = new Set();
     for (const team of this.teams.values()) {
+      if (!team || !team.id || seen.has(team.id)) continue;
+      seen.add(team.id);
       const elapsedSeconds = this.getEffectiveElapsedSeconds(team);
       const finalTimeSeconds = elapsedSeconds + team.totalPenaltySeconds;
       let status = 'in_progress';

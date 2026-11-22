@@ -148,7 +148,14 @@ export default function CoordinatorPage() {
       const res = await fetch('/api/coordinator/teams');
       if (res.ok) {
         const data = await res.json();
-        setTeams(data.teams || []);
+        const incoming = Array.isArray(data.teams) ? data.teams : [];
+        const uniqueMap = new Map();
+        for (const tm of incoming) {
+          if (tm && tm.id && !uniqueMap.has(tm.id)) {
+            uniqueMap.set(tm.id, tm);
+          }
+        }
+        setTeams(Array.from(uniqueMap.values()));
       }
     } catch {}
   }
@@ -421,7 +428,7 @@ export default function CoordinatorPage() {
                     </td>
                   </tr>
                 ) : (
-                  teams.map((t) => {
+                  teams.map((t, idx) => {
                     const elMin = Math.floor(t.elapsedSeconds / 60);
                     const elSec = t.elapsedSeconds % 60;
                     const totMin = Math.floor(t.finalTimeSeconds / 60);
@@ -429,7 +436,7 @@ export default function CoordinatorPage() {
 
                     return (
                       <tr
-                        key={t.id}
+                        key={`coord-team-${t.id || idx}`}
                         className="clickable"
                         onClick={() => loadTimeline(t)}
                         style={{

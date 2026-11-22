@@ -219,7 +219,14 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/teams');
       if (res.ok) {
         const data = await res.json();
-        setTeams(data.teams || []);
+        const incoming = Array.isArray(data.teams) ? data.teams : [];
+        const uniqueMap = new Map();
+        for (const tm of incoming) {
+          if (tm && tm.id && !uniqueMap.has(tm.id)) {
+            uniqueMap.set(tm.id, tm);
+          }
+        }
+        setTeams(Array.from(uniqueMap.values()));
       }
     } catch {} finally {
       isFetchingTeamsRef.current = false;
@@ -964,7 +971,7 @@ export default function AdminPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredTeams.map((t) => {
+                    filteredTeams.map((t, idx) => {
                       const elMin = Math.floor(t.elapsedSeconds / 60);
                       const elSec = t.elapsedSeconds % 60;
                       const totMin = Math.floor(t.finalTimeSeconds / 60);
@@ -972,7 +979,7 @@ export default function AdminPage() {
 
                       return (
                         <tr
-                          key={t.id}
+                          key={`admin-team-${t.id || idx}`}
                           className="clickable"
                           onClick={() => loadTeamTimeline(t.id)}
                           style={{
