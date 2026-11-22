@@ -19,7 +19,12 @@ const DEFAULT_COORDINATORS = [
   { id: 'vishnu', name: 'Vishnuvardhan', pin: 'VISHNU#111' },
   { id: 'vandhana', name: 'Vandhana V', pin: 'VANDHANA#222' },
   { id: 'abhiram', name: 'Abhiram BS', pin: 'ABHIRAM#333' },
-  { id: 'harshil', name: 'Harshil', pin: 'HARSHIL#444' }
+  { id: 'harshil', name: 'Harshil', pin: 'HARSHIL#444' },
+  { id: 'arun', name: 'Arun', pin: 'ARUN#234' },
+  { id: 'divya', name: 'Divya', pin: 'DIVYA#567' },
+  { id: 'kiran', name: 'Kiran', pin: 'KIRAN#890' },
+  { id: 'pooja', name: 'Pooja', pin: 'POOJA#123' },
+  { id: 'rakshith', name: 'Rakshith', pin: 'RAKSHITH#456' }
 ];
 
 let parsedCoordinators = DEFAULT_COORDINATORS;
