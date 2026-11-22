@@ -115,7 +115,7 @@ export class DatabaseManager {
 
     // Ensure INSERT returns ID if not present (only for tables with an 'id' column)
     if (
-      /^\s*INSERT\s+INTO\s+(teams|members|violations|submissions|audit|hint_unlocks|alerts)/i.test(translated) &&
+      /^\s*INSERT\s+INTO\s+(?:public\.)?(teams|members|violations|submissions|audit|hint_unlocks|alerts)/i.test(translated) &&
       !/RETURNING/i.test(translated)
     ) {
       translated += ' RETURNING id';

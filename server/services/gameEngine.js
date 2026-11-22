@@ -565,7 +565,8 @@ export class GameEngine {
         currentStage: 1,
         startTime: teamStartTime,
         createdAt: now,
-        setId: assignedSetId
+        setId: assignedSetId,
+        teamNumber: assignedTeamNumber
       },
       insertedMembers,
       leaderToken,
