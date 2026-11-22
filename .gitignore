@@ -12,6 +12,7 @@ server/db/*.db-wal
 server/db/*.db-shm
 
 # Environment variables
+.env
 .env.local
 .env.*.local
 

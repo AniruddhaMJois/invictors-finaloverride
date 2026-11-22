@@ -326,24 +326,32 @@ function getLanIp() {
   return 'localhost';
 }
 
-// Start server
+// Start server (only in standalone Node / LAN mode, not in Vercel serverless environment)
 async function start() {
   await db.init();
   await gameEngine.loadFromDb();
 
-  server.listen(CONFIG.PORT, '0.0.0.0', () => {
-    const lanIp = getLanIp();
-    console.log(`\n========================================================`);
-    console.log(`🚀 FINAL OVERRIDE Server Online`);
-    console.log(`📡 Local:   http://localhost:${CONFIG.PORT}`);
-    console.log(`🌐 LAN URL: http://${lanIp}:${CONFIG.PORT}`);
-    console.log(`🔐 Admin PIN: ${CONFIG.ADMIN_PIN}`);
-    console.log(`⚡ Hard Cap:  ${CONFIG.TIME_CAP_SECONDS} seconds (90 minutes)`);
-    console.log(`========================================================\n`);
+  if (!process.env.VERCEL) {
+    server.listen(CONFIG.PORT, '0.0.0.0', () => {
+      const lanIp = getLanIp();
+      console.log(`\n========================================================`);
+      console.log(`🚀 FINAL OVERRIDE Server Online`);
+      console.log(`📡 Local:   http://localhost:${CONFIG.PORT}`);
+      console.log(`🌐 LAN URL: http://${lanIp}:${CONFIG.PORT}`);
+      console.log(`🔐 Admin PIN: ${CONFIG.ADMIN_PIN}`);
+      console.log(`⚡ Hard Cap:  ${CONFIG.TIME_CAP_SECONDS} seconds (90 minutes)`);
+      console.log(`========================================================\n`);
+    });
+  }
+}
+
+if (!process.env.VERCEL) {
+  start().catch((err) => {
+    console.error('Fatal Server Startup Error:', err);
+    process.exit(1);
   });
 }
 
-start().catch((err) => {
-  console.error('Fatal Server Startup Error:', err);
-  process.exit(1);
-});
+export { app, server, start };
+export default app;
+
