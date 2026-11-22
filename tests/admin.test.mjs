@@ -149,7 +149,7 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     assert.equal(reg.team.totalPenaltySeconds, 120);
 
     // Find violation record
-    const violation = await db.get('SELECT id FROM violations WHERE team_id = ? AND waived = 0', [reg.team.id]);
+    const violation = await db.get('SELECT id FROM violations WHERE team_id = ? AND (waived = FALSE OR waived = 0)', [reg.team.id]);
     assert.ok(violation);
 
     // Waive penalty
@@ -157,7 +157,7 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     assert.equal(waiveResult.success, true);
     assert.equal(reg.team.totalPenaltySeconds, 0, 'Penalty must be 0 after waive');
     const waivedDb = await db.get('SELECT waived FROM violations WHERE id = ?', [violation.id]);
-    assert.equal(waivedDb.waived, 1);
+    assert.equal(Boolean(waivedDb.waived), true);
 
     // 2. Unbind Device
     const deviceToken = reg.token;
@@ -165,7 +165,7 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     await gameEngine.unbindDevice(deviceToken, 'Admin');
     assert.equal(gameEngine.tokens.has(deviceToken), false, 'Token must be deleted from memory');
     const devDb = await db.get('SELECT * FROM devices WHERE token = ?', [deviceToken]);
-    assert.equal(devDb, undefined, 'Device must be removed from SQLite');
+    assert.ok(!devDb, 'Device must be removed from database');
 
     // 3. Skip Stage (Stage 1 -> Stage 2)
     const skipResult = await gameEngine.skipStage(reg.team.id, 'Admin');

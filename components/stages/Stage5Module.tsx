@@ -75,8 +75,13 @@ export const Stage5Module: React.FC = () => {
   }
 
   function copyToClipboard(text: string, label: string) {
-    navigator.clipboard.writeText(text);
-    showToast(`Copied ${label} to clipboard!`, 'ok');
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: text }));
+    }
+    showToast(`Copied & filled "${text}" into solution bar!`, 'ok');
   }
 
   return (
@@ -359,6 +364,13 @@ export const Stage5Module: React.FC = () => {
                 >
                   {decodedText}
                 </span>
+                <Button
+                  variant="gold"
+                  onClick={() => copyToClipboard(decodedText, 'Decoded Fragment')}
+                  style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, marginLeft: 'auto' }}
+                >
+                  Fill into Solution Bar ➡️
+                </Button>
               </div>
             </div>
           )}

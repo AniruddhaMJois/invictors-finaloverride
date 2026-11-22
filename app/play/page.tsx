@@ -53,6 +53,24 @@ export default function GameDashboardPage() {
     setViewStage(currentStageNum);
   }, [currentStageNum]);
 
+  // Reset input and clear any stale feedback whenever viewing a different stage
+  useEffect(() => {
+    setFeedback(null);
+    setAnswerInput('');
+  }, [viewStage]);
+
+  // Support direct autofill events from modules (like Stage 5 decoder or Stage 3 WARDEN)
+  useEffect(() => {
+    const handleSetAnswer = (e: any) => {
+      if (e.detail) {
+        setAnswerInput(String(e.detail).trim());
+        setFeedback(null);
+      }
+    };
+    window.addEventListener('fo:set-answer', handleSetAnswer);
+    return () => window.removeEventListener('fo:set-answer', handleSetAnswer);
+  }, []);
+
   // Instant Supabase Realtime Synchronization
   // Subscribes to settings, teams, progress, and violations to reflect admin controls in milliseconds
   useEffect(() => {
@@ -225,8 +243,13 @@ export default function GameDashboardPage() {
       }
 
       if (data.correct) {
-        setFeedback({ text: `✅ Mission ${state.currentStage} cleared!`, isError: false });
-        showToast(`✅ Mission ${state.currentStage} cleared!`, 'ok');
+        const clearedStage = state.currentStage;
+        showToast(`🎉 Mission ${clearedStage} cleared! Fragment: ${data.fragment || ''}`, 'ok');
+        setFeedback({
+          text: `✅ Mission ${clearedStage} cleared! Moving to Stage ${data.nextStage || clearedStage}...`,
+          isError: false
+        });
+        setTimeout(() => setFeedback(null), 3500);
         setAnswerInput('');
 
         // Direct immediately to next stage subsequently
@@ -897,17 +920,32 @@ export default function GameDashboardPage() {
                     marginBottom: '8px'
                   }}
                 >
-                  ENTER RECOVERED FRAGMENT / OVERRIDE KEY:
+                  {currentStageNum === 6
+                    ? 'ENTER MASTER OVERRIDE KEY (STAGE 6):'
+                    : `ENTER MISSION ${currentStageNum} RECOVERED FRAGMENT / OVERRIDE KEY:`}
                 </label>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <Input
                     value={answerInput}
-                    onChange={(e) => setAnswerInput(e.target.value)}
+                    onChange={(e) => {
+                      setAnswerInput(e.target.value);
+                      if (feedback) setFeedback(null);
+                    }}
                     placeholder={
                       currentStageNum === 6
                         ? 'FO{...}#checksum'
-                        : `Enter Stage ${currentStageNum} solution fragment`
+                        : `Enter Stage ${currentStageNum} solution fragment (e.g. ${
+                            currentStageNum === 1
+                              ? 'Sector Word'
+                              : currentStageNum === 2
+                              ? '3-character code'
+                              : currentStageNum === 3
+                              ? 'AI vault word'
+                              : currentStageNum === 4
+                              ? '3-character key'
+                              : 'Hex decoupled code'
+                          })`
                     }
                     autoFocus
                   />

@@ -642,6 +642,62 @@ export const Stage4Module: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* 3. Synthesis & Combined Key Card */}
+      <Card glow>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--gold)' }}>
+              🔑 Gateway Override Key Synthesis
+            </span>
+            <span className={`badge ${solvedStations.length === 3 ? 'badge-green' : 'badge-gold'}`}>
+              {solvedStations.length === 3 ? 'Ready to Submit ✅' : `${solvedStations.length}/3 Stations Verified`}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ padding: '8px 14px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)' }}>STATION 1</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)' }}>{s1Input || (isS1Solved ? '✓' : '?')}</div>
+            </div>
+            <span style={{ color: 'var(--muted)', fontWeight: 800 }}>+</span>
+            <div style={{ padding: '8px 14px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)' }}>STATION 2</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)' }}>{s2Input || (isS2Solved ? '✓' : '?')}</div>
+            </div>
+            <span style={{ color: 'var(--muted)', fontWeight: 800 }}>+</span>
+            <div style={{ padding: '8px 14px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)' }}>STATION 3</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)' }}>{s3Input || (isS3Solved ? '✓' : '?')}</div>
+            </div>
+            <span style={{ color: 'var(--gold)', fontWeight: 800 }}>=</span>
+            <div style={{ padding: '8px 16px', background: 'rgba(255, 184, 31, 0.1)', borderRadius: '6px', border: '1px solid var(--gold)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--gold)' }}>COMBINED KEY</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--gold-bright)', letterSpacing: '2px' }}>
+                {s1Input && s2Input && s3Input ? `${s1Input}${s2Input}${s3Input}` : '3 Characters'}
+              </div>
+            </div>
+            {s1Input && s2Input && s3Input && (
+              <Button
+                variant="gold"
+                onClick={() => {
+                  const combined = `${s1Input}${s2Input}${s3Input}`.trim().toUpperCase();
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: combined }));
+                  }
+                  showToast(`Filled "${combined}" into solution bar!`, 'ok');
+                }}
+                style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 700 }}
+              >
+                Fill into Solution Bar ➡️
+              </Button>
+            )}
+          </div>
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+            💡 Combine the 3 verified characters in order (Station 1 + Station 2 + Station 3) and submit in the solution bar below to override Mission 4.
+          </p>
+        </div>
+      </Card>
     </div>
   );
 };

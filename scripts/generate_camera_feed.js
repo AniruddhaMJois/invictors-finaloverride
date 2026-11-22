@@ -398,11 +398,11 @@ export function generateCameraImage(outputPath, accessDigit = '1') {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const setDigits = {
-    A: '6',
-    B: '2',
-    C: '5',
-    D: '8',
-    E: '4'
+    A: '1',
+    B: '4',
+    C: '2',
+    D: '3',
+    E: '7'
   };
 
   const publicDir = path.join(__dirname, '../public/assets/stage4');

@@ -29,7 +29,7 @@ const SYMBOL_LEGEND = [
 
 const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: string; legend: Array<{ shape: string; letter: string }> }> = {
   A: {
-    s1Clearance: 'L3',
+    s1Clearance: 'L9',
     activeSymbol: 'triangle',
     legend: [
       { shape: 'triangle', letter: 'X' },
@@ -41,7 +41,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   B: {
-    s1Clearance: 'L7',
+    s1Clearance: 'L8',
     activeSymbol: 'star',
     legend: [
       { shape: 'star', letter: 'Z' },
@@ -53,7 +53,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   C: {
-    s1Clearance: 'L9',
+    s1Clearance: 'L7',
     activeSymbol: 'diamond',
     legend: [
       { shape: 'diamond', letter: 'Y' },
@@ -65,7 +65,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   D: {
-    s1Clearance: 'L2',
+    s1Clearance: 'L6',
     activeSymbol: 'square',
     legend: [
       { shape: 'square', letter: 'K' },
@@ -77,7 +77,7 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
     ]
   },
   E: {
-    s1Clearance: 'L6',
+    s1Clearance: 'L5',
     activeSymbol: 'circle',
     legend: [
       { shape: 'circle', letter: 'W' },

@@ -205,7 +205,7 @@ export class GameEngine {
         verificationCode = this.calculateVerificationCode(t.name, t.start_time, t.end_time);
       }
 
-      this.teams.set(t.id, {
+      const teamObj = {
         id: t.id,
         teamName: t.name,
         coordinator: t.coordinator,
@@ -231,8 +231,22 @@ export class GameEngine {
         boundDevicesCount: boundDevices.length,
         verificationCode,
         setId: t.set_id || 'A'
-      });
+      };
+
+      this.teams.set(t.id, teamObj);
+      this.teams.set(String(t.id), teamObj);
+      this.teams.set(Number(t.id), teamObj);
     }
+  }
+
+  getTeam(teamId) {
+    if (teamId === undefined || teamId === null) return null;
+    return (
+      this.teams.get(teamId) ||
+      this.teams.get(Number(teamId)) ||
+      this.teams.get(String(teamId)) ||
+      null
+    );
   }
 
   async refreshGlobalSettings() {
@@ -334,6 +348,8 @@ export class GameEngine {
     };
 
     this.teams.set(t.id, teamObj);
+    this.teams.set(String(t.id), teamObj);
+    this.teams.set(Number(t.id), teamObj);
     return teamObj;
   }
 
@@ -437,7 +453,7 @@ export class GameEngine {
 
     const now = Date.now();
     const teamPin = `FO-${Math.floor(1000 + Math.random() * 9000)}`;
-    const teamStartTime = (isDemo || this.gameStarted || isTestRunner()) ? now : null;
+    const teamStartTime = (this.gameStarted || isTestRunner()) ? now : null;
 
     let assignedSetId = 'A';
     if (isDemo) {
@@ -569,6 +585,8 @@ export class GameEngine {
     };
 
     this.teams.set(teamId, teamState);
+    this.teams.set(String(teamId), teamState);
+    this.teams.set(Number(teamId), teamState);
     this.broadcastLeaderboard();
     this.broadcastAdminUpdate();
 
@@ -591,7 +609,7 @@ export class GameEngine {
       const dbTeam = await db.get('SELECT id FROM teams WHERE LOWER(name) = ?', [cleanTeam]);
       if (dbTeam && dbTeam.id) {
         await this.loadTeamFromDb(parseInt(dbTeam.id, 10));
-        foundTeam = this.teams.get(parseInt(dbTeam.id, 10));
+        foundTeam = this.getTeam(dbTeam.id);
       }
     }
 
@@ -631,14 +649,14 @@ export class GameEngine {
   }
 
   async submitAnswer(teamId, stage, rawAnswer) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     if (this.globalPaused) {
       throw new Error('Game is currently paused by organisers.');
     }
 
-    if (!this.gameStarted && !team.startTime && team.teamName.toUpperCase() !== 'DEMO') {
+    if (!this.gameStarted && !team.startTime) {
       throw new Error('Game is currently in standby lobby. Awaiting master admin launch signal.');
     }
 
@@ -647,8 +665,9 @@ export class GameEngine {
     }
 
     // Time cap check (5400s)
+    const isDemoTeam = team.setId === 'E' || (team.teamName && team.teamName.toUpperCase().includes('DEM'));
     const effectiveElapsed = this.getEffectiveElapsedSeconds(team);
-    if (effectiveElapsed >= CONFIG.TIME_CAP_SECONDS) {
+    if (!isDemoTeam && effectiveElapsed >= CONFIG.TIME_CAP_SECONDS) {
       throw new Error('Time cap reached (90 mins). Challenge is over.');
     }
 
@@ -687,17 +706,27 @@ export class GameEngine {
     const isPhraseOnStage3 = stage === 3 && normalized === setPhrase;
     const is7X2Decoy = stage === 2 && normalized === '7X2';
 
-    // Stage 4 requirement: all 3 stations must be solved before fragment is accepted
+    // Stage 4 requirement: auto-solve all 3 stations if the correct 3-char fragment is submitted
     if (stage === 4) {
-      const solved = this.stage4Stations.get(teamId) || new Set();
-      if (solved.size < 3) {
-        return {
-          correct: false,
-          attempts: team.wrongAttemptsCurrentStage,
-          penaltyAdded: 0,
-          isDecoy: false,
-          message: 'Solve all 3 stations first. 🛡️'
-        };
+      if (isCorrect) {
+        this.stage4Stations.set(teamId, new Set([1, 2, 3]));
+        this.stage4Stations.set(Number(teamId), new Set([1, 2, 3]));
+        this.stage4Stations.set(String(teamId), new Set([1, 2, 3]));
+      } else {
+        const solved =
+          this.stage4Stations.get(teamId) ||
+          this.stage4Stations.get(Number(teamId)) ||
+          this.stage4Stations.get(String(teamId)) ||
+          new Set();
+        if (solved.size < 3) {
+          return {
+            correct: false,
+            attempts: team.wrongAttemptsCurrentStage,
+            penaltyAdded: 0,
+            isDecoy: false,
+            message: 'Please solve all 3 stations above first, or enter the complete 3-character override key (e.g. Station 1 + 2 + 3). 🛡️'
+          };
+        }
       }
     }
 
@@ -807,7 +836,7 @@ export class GameEngine {
   }
 
   async unlockHint(teamId, stage, hintNumber) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     if (team.currentStage !== stage) {
@@ -896,7 +925,7 @@ export class GameEngine {
   }
 
   async recordTabViolation(teamId) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team || team.isCompleted) return { success: false };
 
     const now = Date.now();
@@ -929,7 +958,7 @@ export class GameEngine {
   }
 
   async saveNotes(teamId, text) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) return;
 
     team.notepadText = text || '';
@@ -996,7 +1025,7 @@ export class GameEngine {
 
   async addChatMessage(teamId, userText, memberName = 'Operator') {
     const now = Date.now();
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     // 1s rate-limit cooldown check
@@ -1108,7 +1137,7 @@ export class GameEngine {
   }
 
   async checkStage4Station(teamId, stationNum, rawValue) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     if (team.currentStage !== 4) {
@@ -1230,11 +1259,11 @@ export class GameEngine {
     await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '1')");
     await supabaseSync.syncSettings('game_started', '1');
 
-    // Update all squads directly in Supabase that have not started yet
-    await db.run('UPDATE teams SET start_time = ? WHERE start_time IS NULL', [now]);
+    // Update all squads directly in Supabase that have not completed yet so everyone starts at the same time
+    await db.run('UPDATE teams SET start_time = ? WHERE is_completed = FALSE', [now]);
 
     for (const team of this.teams.values()) {
-      if (!team.startTime) {
+      if (!team.isCompleted) {
         team.startTime = now;
         await supabaseSync.syncTeamRegister(team, team.members, null, null);
         this.broadcastTeamState(team.id);
@@ -1267,7 +1296,7 @@ export class GameEngine {
   }
 
   async toggleTeamPause(teamId, pauseState, actor = 'Admin') {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
     if (team.isCompleted) throw new Error('Team has already completed the game.');
 
@@ -1314,7 +1343,7 @@ export class GameEngine {
   }
 
   getClientTeamState(teamId) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) return null;
 
     const now = Date.now();
@@ -1674,7 +1703,7 @@ export class GameEngine {
   }
 
   async getTeamTimeline(teamId) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     const events = [];
@@ -1770,7 +1799,7 @@ export class GameEngine {
   }
 
   async waivePenalty(teamId, violationId, actor = 'Admin') {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     const vId = parseInt(violationId, 10);
@@ -1802,7 +1831,7 @@ export class GameEngine {
     await supabaseSync.syncUnbindDevice(token);
     this.tokens.delete(token);
 
-    const team = this.teams.get(d.team_id);
+    const team = this.getTeam(d.team_id);
     if (team) {
       const boundDevices = await db.all('SELECT token FROM devices WHERE team_id = ?', [team.id]);
       team.boundDevicesCount = boundDevices.length;
@@ -1815,7 +1844,7 @@ export class GameEngine {
   }
 
   async skipStage(teamId, actor = 'Admin') {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
     if (team.isCompleted) throw new Error('Team has already completed the game.');
 
@@ -1871,7 +1900,7 @@ export class GameEngine {
   }
 
   async restartTeam(teamId, confirmName, actor = 'Admin') {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
     if ((confirmName || '').trim().toLowerCase() !== team.teamName.trim().toLowerCase()) {
@@ -1922,7 +1951,7 @@ export class GameEngine {
   }
 
   async addCoordinatorAlert({ coordinator, teamId, message }) {
-    const team = this.teams.get(teamId);
+    const team = this.getTeam(teamId);
     const alert = {
       id: `alert_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       type: 'coordinator_call',
