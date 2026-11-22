@@ -704,8 +704,9 @@ export class GameEngine {
 
     const expectedAnswer = qSet ? qSet[`stage${stage}_answer`] : STAGE_ANSWERS[stage];
     const expected = (expectedAnswer || '').trim().replace(/\s+/g, '').toUpperCase();
+    const cleanNormalized = normalized.replace(/[-_#]/g, '');
 
-    const isCorrect = normalized === expected;
+    const isCorrect = normalized === expected || cleanNormalized === expected;
     const isZeta9Decoy = normalized === 'ZETA9';
     const setPhrase = (qSet ? (stage === 2 ? qSet.stage2_phrase : qSet.stage3_phrase) : 'AURORA').toUpperCase();
     const isPhraseDecoy = stage === 2 && normalized === setPhrase;

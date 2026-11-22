@@ -34,11 +34,12 @@ export async function GET(request: Request) {
   }
 
   const fileBuffer = fs.readFileSync(filePath);
-  return new Response(fileBuffer, {
+  return new NextResponse(fileBuffer, {
     status: 200,
     headers: {
       'Content-Type': 'image/png',
-      'Cache-Control': 'private, no-cache, no-store, must-revalidate'
+      'Content-Length': fileBuffer.length.toString(),
+      'Cache-Control': 'no-store, must-revalidate'
     }
   });
 }

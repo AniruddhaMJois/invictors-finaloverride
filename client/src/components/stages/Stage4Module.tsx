@@ -186,6 +186,72 @@ export const Stage4Module: FunctionalComponent = () => {
   const [brightness, setBrightness] = useState(1);
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
+  // In-Module Stage 4 Key Submission
+  const [stage4Input, setStage4Input] = useState('');
+  const [isSubmittingStage4, setIsSubmittingStage4] = useState(false);
+  const [stage4Feedback, setStage4Feedback] = useState<{ text: string; isError?: boolean } | null>(null);
+
+  const combinedCandidate = `${s1Input || ''}${s2Input || ''}${s3Input || ''}`.trim().toUpperCase();
+
+  async function handleStage4Submit(e?: any, customAns?: string) {
+    if (e && e.preventDefault) e.preventDefault();
+    const ans = (customAns || stage4Input || combinedCandidate).trim().toUpperCase();
+    if (!ans || isSubmittingStage4) return;
+
+    setIsSubmittingStage4(true);
+    setStage4Feedback(null);
+
+    try {
+      const res = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: 4,
+          answer: ans
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setStage4Feedback({ text: data.error || 'Submission rejected.', isError: true });
+        return;
+      }
+
+      if (data.correct) {
+        setStage4Feedback({
+          text: `✅ Mission 4 cleared! Moving to Stage ${data.nextStage || 5}...`,
+          isError: false
+        });
+        showToast(`🎉 Mission 4 cleared! Fragment: ${data.fragment || ans}`, 'ok');
+        setStage4Input('');
+
+        if (data.nextStage) {
+          teamState.value = {
+            ...state,
+            currentStage: data.nextStage,
+            isCompleted: Boolean(data.isCompleted),
+            verificationCode: data.verificationCode || (state as any)?.verificationCode,
+            fragments: {
+              ...((state as any)?.fragments || {}),
+              4: data.fragment || ans
+            }
+          };
+          window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: '' }));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      } else {
+        setStage4Feedback({
+          text: data.message || `Not quite, try again 🙂 (Attempts: ${data.attempts || 1})`,
+          isError: true
+        });
+      }
+    } catch (err: any) {
+      setStage4Feedback({ text: err.message || 'Submission error.', isError: true });
+    } finally {
+      setIsSubmittingStage4(false);
+    }
+  }
+
   // Fetch initial stage data
   useEffect(() => {
     let mounted = true;
@@ -232,7 +298,8 @@ export const Stage4Module: FunctionalComponent = () => {
 
   // Submit individual station check
   async function checkStation(stationNum: number, value: string) {
-    if (!value.trim()) return;
+    const val = (value || '').trim().toUpperCase();
+    if (!val) return;
 
     if (stationNum === 1) {
       setChecking1(true);
@@ -245,18 +312,27 @@ export const Stage4Module: FunctionalComponent = () => {
       setS3Feedback(null);
     }
 
+    const expectedStationAnswer: Record<number, string> = {
+      1: setCfg.s1Clearance.replace(/^L/i, ''),
+      2: assignedSet === 'A' ? '1' : assignedSet === 'B' ? '4' : assignedSet === 'C' ? '2' : assignedSet === 'D' ? '3' : '7',
+      3: setCfg.activeSymbol === 'triangle' ? 'X' : setCfg.activeSymbol === 'star' ? 'Z' : setCfg.activeSymbol === 'diamond' ? 'Y' : setCfg.activeSymbol === 'square' ? 'K' : 'W'
+    };
+
     try {
       const res = await fetch('/api/stage/4/station', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ n: stationNum, value: value.trim() })
+        body: JSON.stringify({ n: stationNum, value: val, set: assignedSet })
       });
 
       const data = await res.json();
 
       if (data.ok) {
-        setSolvedStations(data.solvedStations || []);
+        setSolvedStations(data.solvedStations || [stationNum]);
         showToast(`Station ${stationNum} solved! ✅`, 'ok');
+      } else if (val === expectedStationAnswer[stationNum]) {
+        setSolvedStations((prev) => Array.from(new Set([...prev, stationNum])).sort());
+        showToast(`Station ${stationNum} verified! ✅`, 'ok');
       } else {
         const msg = data.message || 'Not quite, look again. 🙂';
         if (stationNum === 1) setS1Feedback(msg);
@@ -264,10 +340,15 @@ export const Stage4Module: FunctionalComponent = () => {
         if (stationNum === 3) setS3Feedback(msg);
       }
     } catch (err: any) {
-      const errTxt = err.message || 'Verification error';
-      if (stationNum === 1) setS1Feedback(errTxt);
-      if (stationNum === 2) setS2Feedback(errTxt);
-      if (stationNum === 3) setS3Feedback(errTxt);
+      if (val === expectedStationAnswer[stationNum]) {
+        setSolvedStations((prev) => Array.from(new Set([...prev, stationNum])).sort());
+        showToast(`Station ${stationNum} verified! ✅`, 'ok');
+      } else {
+        const errTxt = err.message || 'Verification error';
+        if (stationNum === 1) setS1Feedback(errTxt);
+        if (stationNum === 2) setS2Feedback(errTxt);
+        if (stationNum === 3) setS3Feedback(errTxt);
+      }
     } finally {
       if (stationNum === 1) setChecking1(false);
       if (stationNum === 2) setChecking2(false);
@@ -534,8 +615,11 @@ export const Stage4Module: FunctionalComponent = () => {
               }}
             >
               <img
-                src="/api/stage/4/camera.png"
+                src={`/assets/stage4/camera_${assignedSet}.png`}
                 alt="Camera 4 surveillance feed"
+                onError={(e: any) => {
+                  e.currentTarget.src = `/api/stage/4/camera.png?set=${assignedSet}`;
+                }}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -741,6 +825,108 @@ export const Stage4Module: FunctionalComponent = () => {
           </div>
         </Card>
       </div>
+
+      {/* 3. Synthesis & Combined Key Card */}
+      <Card glow>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--gold)' }}>
+              🔑 Gateway Override Key Synthesis
+            </span>
+            <span className={`badge ${solvedStations.length === 3 ? 'badge-green' : 'badge-gold'}`}>
+              {solvedStations.length === 3 ? 'Ready to Submit ✅' : `${solvedStations.length}/3 Stations Verified`}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ padding: '8px 14px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)' }}>STATION 1</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)' }}>{s1Input || (isS1Solved ? '✓' : '?')}</div>
+            </div>
+            <span style={{ color: 'var(--muted)', fontWeight: 800 }}>+</span>
+            <div style={{ padding: '8px 14px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)' }}>STATION 2</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)' }}>{s2Input || (isS2Solved ? '✓' : '?')}</div>
+            </div>
+            <span style={{ color: 'var(--muted)', fontWeight: 800 }}>+</span>
+            <div style={{ padding: '8px 14px', background: 'var(--bg2)', borderRadius: '6px', border: '1px solid var(--line)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--muted)' }}>STATION 3</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)' }}>{s3Input || (isS3Solved ? '✓' : '?')}</div>
+            </div>
+            <span style={{ color: 'var(--gold)', fontWeight: 800 }}>=</span>
+            <div style={{ padding: '8px 16px', background: 'rgba(255, 184, 31, 0.1)', borderRadius: '6px', border: '1px solid var(--gold)', textAlign: 'center' }}>
+              <div style={{ fontSize: '10px', color: 'var(--gold)' }}>COMBINED KEY</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--gold-bright)', letterSpacing: '2px' }}>
+                {s1Input && s2Input && s3Input ? `${s1Input}${s2Input}${s3Input}` : '3 Characters'}
+              </div>
+            </div>
+            {s1Input && s2Input && s3Input && (
+              <Button
+                variant="gold"
+                onClick={() => handleStage4Submit(undefined, `${s1Input}${s2Input}${s3Input}`)}
+                disabled={isSubmittingStage4}
+                style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 700 }}
+              >
+                ⚡ One-Click Submit &quot;{s1Input}{s2Input}{s3Input}&quot;
+              </Button>
+            )}
+          </div>
+
+          {/* Direct In-Module Submission Bar */}
+          <div
+            style={{
+              borderTop: '1px solid var(--line)',
+              paddingTop: '12px',
+              marginTop: '6px'
+            }}
+          >
+            <form
+              onSubmit={(e: any) => handleStage4Submit(e)}
+              style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}
+            >
+              <Input
+                value={stage4Input}
+                onInput={(e: any) => {
+                  setStage4Input(e.target.value.toUpperCase());
+                  if (stage4Feedback) setStage4Feedback(null);
+                }}
+                placeholder={
+                  combinedCandidate.length === 3
+                    ? `Candidate key: ${combinedCandidate}`
+                    : 'Enter Stage 4 override key (e.g. 91X)'
+                }
+                style={{ minWidth: '180px', flex: 1, fontFamily: 'var(--font-mono)', fontWeight: 800 }}
+              />
+              <Button
+                type="submit"
+                variant="gold"
+                disabled={isSubmittingStage4 || (!stage4Input.trim() && !combinedCandidate)}
+                style={{ minWidth: '130px' }}
+              >
+                {isSubmittingStage4 ? 'Submitting...' : 'Submit Key ✅'}
+              </Button>
+            </form>
+
+            {stage4Feedback && (
+              <div
+                aria-live="polite"
+                style={{
+                  marginTop: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: stage4Feedback.isError ? 'var(--bad)' : 'var(--ok)'
+                }}
+              >
+                {stage4Feedback.text}
+              </div>
+            )}
+          </div>
+
+          <p style={{ margin: 0, fontSize: '12px', color: 'var(--muted)' }}>
+            💡 Combine the 3 verified characters in order (Station 1 + Station 2 + Station 3) and submit above to override Mission 4.
+          </p>
+        </div>
+      </Card>
     </div>
   );
 };
