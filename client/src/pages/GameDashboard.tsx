@@ -4,6 +4,7 @@ import { STAGES_METADATA } from '../../../shared/types';
 import { Header } from '../components/layout/Header';
 import { Footer } from '../components/layout/Footer';
 import { Card, Button, Input, Modal, CountdownRing } from '../components/common/UI';
+import { InvictorsLogo } from '../components/common/Logos';
 import {
   teamState,
   isGlobalPaused,
@@ -254,58 +255,98 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
             padding: '24px 16px'
           }}
         >
-          <Card style={{ maxWidth: '640px', width: '100%', textAlign: 'center', padding: '36px 24px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '14px' }}>⏳</div>
+          <Card glow style={{ maxWidth: '640px', width: '100%', textAlign: 'center', padding: '36px 24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+              <div className="animate-float">
+                <InvictorsLogo size={84} onDoubleClick={onAdminClick} />
+              </div>
+            </div>
+
             <div
               style={{
-                fontSize: '12px',
-                color: 'var(--gold)',
+                fontFamily: 'var(--font-hud)',
+                fontSize: '13px',
+                color: 'var(--gold-bright)',
                 fontWeight: 800,
-                letterSpacing: '1.5px',
+                letterSpacing: '2px',
                 textTransform: 'uppercase',
-                marginBottom: '8px'
+                marginBottom: '8px',
+                textShadow: '0 0 10px rgba(255, 215, 0, 0.4)'
               }}
             >
-              SYNCHRONIZED LOBBY PROTOCOL ENGAGED
+              SYNCHRONIZED SQUAD STANDBY LOBBY
             </div>
-            <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--txt)', marginBottom: '10px' }}>
+
+            <h1
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'clamp(20px, 3.5vw, 26px)',
+                fontWeight: 900,
+                color: '#ffffff',
+                marginBottom: '10px',
+                letterSpacing: '0.5px'
+              }}
+            >
               Awaiting Master Admin Launch Signal
             </h1>
-            <p style={{ color: 'var(--muted)', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
-              Squad <strong style={{ color: 'var(--cyan)' }}>{state.teamName}</strong> is verified and standing by.
-              All squads will enter Mission 1 simultaneously once the event organisers give the launch signal.
+
+            <p style={{ color: 'var(--muted)', fontSize: '14.5px', lineHeight: 1.6, marginBottom: '24px', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>
+              Squad <strong style={{ color: 'var(--cyan)' }}>{state.teamName}</strong> is verified and standing by in <span style={{ color: 'var(--gold)' }}>M Block 401</span>.
+              All squads will enter Mission 1 simultaneously once the launch command is issued from Mission Control.
             </p>
+
+            {/* Event Telemetry Badge */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '16px',
+                marginBottom: '20px',
+                flexWrap: 'wrap'
+              }}
+            >
+              <div className="poster-meta-pod" style={{ padding: '8px 14px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 700 }}>📅 23rd Nov 2026</span>
+                <span style={{ color: 'var(--line)' }}>|</span>
+                <span style={{ fontSize: '12px', color: 'var(--cyan)', fontWeight: 700 }}>🕒 4:00 PM Onwards</span>
+              </div>
+              <div className="poster-meta-pod gold" style={{ padding: '8px 14px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 800 }}>📍 VENUE: M Block 401</span>
+              </div>
+            </div>
 
             {/* Squad Info Box */}
             <div
               style={{
-                background: 'var(--bg2)',
-                border: '1px solid var(--line)',
+                background: 'rgba(5, 14, 31, 0.95)',
+                border: '1px solid var(--line-bright)',
                 borderRadius: 'var(--r-sm)',
                 padding: '16px',
                 textAlign: 'left',
-                marginBottom: '20px'
+                marginBottom: '20px',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.6)'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Assigned Coordinator:</span>
-                <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{state.coordinator}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontFamily: 'var(--font-hud)', fontSize: '13.5px' }}>
+                <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Assigned Event Coordinator:</span>
+                <span style={{ fontWeight: 800, color: 'var(--accent)' }}>{state.coordinator}</span>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>
-                Squad Roster ({state.members.length} members):
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>
+                Verified Squad Roster ({state.members.length} members):
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {state.members.map((m) => (
                   <span
                     key={m.id || m.name}
                     style={{
-                      background: m.isLeader ? 'rgba(255, 184, 31, 0.15)' : 'var(--card)',
-                      border: `1px solid ${m.isLeader ? 'var(--gold)' : 'var(--line)'}`,
-                      padding: '4px 10px',
+                      background: m.isLeader ? 'rgba(255, 184, 31, 0.15)' : 'rgba(8, 22, 48, 0.8)',
+                      border: `1.5px solid ${m.isLeader ? 'var(--gold)' : 'var(--line-bright)'}`,
+                      padding: '5px 12px',
                       borderRadius: 'var(--r-sm)',
-                      fontSize: '12px',
-                      color: m.isLeader ? 'var(--gold)' : 'var(--txt)',
-                      fontWeight: 600
+                      fontSize: '12.5px',
+                      color: m.isLeader ? 'var(--gold-bright)' : '#ffffff',
+                      fontWeight: 700,
+                      fontFamily: 'var(--font-hud)'
                     }}
                   >
                     {m.isLeader ? '👑 ' : '👤 '}
@@ -322,11 +363,12 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                 justifyContent: 'center',
                 gap: '10px',
                 color: 'var(--cyan)',
-                fontSize: '13px',
-                fontWeight: 600
+                fontSize: '13.5px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-hud)'
               }}
             >
-              <span className="animate-spin">🔄</span> Connected to Event LAN · Clocks Frozen
+              <span className="animate-spin" style={{ color: 'var(--accent)' }}>🔄</span> Synchronized to Event LAN · Clocks Frozen
             </div>
           </Card>
         </div>
@@ -601,19 +643,37 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                 const isLocked = stg.id > currentStageNum;
                 const isViewing = viewStage === stg.id;
 
-                let border = '1px solid var(--line)';
-                let bg = 'var(--card)';
+                const stageShortLabels: { [id: number]: string } = {
+                  1: 'S1: SIGNAL',
+                  2: 'S2: DECODING',
+                  3: 'S3: PROMPT AI',
+                  4: 'S4: CTF',
+                  5: 'S5: HEX CORE',
+                  6: 'S6: OVERRIDE'
+                };
+
+                let border = '1px solid var(--line-bright)';
+                let bg = 'rgba(6, 18, 38, 0.85)';
                 let color = 'var(--txt)';
+                let glow = 'none';
 
                 if (isDone) {
-                  border = '1px solid var(--ok)';
+                  border = '1.5px solid var(--ok)';
                   color = 'var(--ok)';
+                  glow = '0 0 10px rgba(0, 245, 155, 0.25)';
                 } else if (isCurrent) {
-                  border = '1px solid var(--gold)';
-                  bg = 'rgba(255, 184, 31, 0.1)';
-                  color = 'var(--gold)';
+                  border = '1.5px solid var(--gold)';
+                  bg = 'rgba(255, 184, 31, 0.14)';
+                  color = 'var(--gold-bright)';
+                  glow = '0 0 12px rgba(255, 184, 31, 0.4)';
                 } else if (isLocked) {
                   color = 'var(--muted)';
+                  bg = 'rgba(4, 10, 22, 0.6)';
+                }
+
+                if (isViewing && !isLocked) {
+                  border = '1.5px solid var(--accent)';
+                  glow = '0 0 14px rgba(0, 240, 255, 0.4)';
                 }
 
                 return (
@@ -628,21 +688,24 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                       flex: '0 0 auto',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '6px',
+                      gap: '8px',
                       padding: '8px 14px',
                       borderRadius: 'var(--r-sm)',
-                      background: isViewing ? 'rgba(39, 180, 255, 0.15)' : bg,
-                      border: isViewing ? '1px solid var(--accent)' : border,
+                      background: isViewing && !isCurrent ? 'rgba(0, 240, 255, 0.15)' : bg,
+                      border,
                       color,
                       fontSize: '13px',
-                      fontWeight: 700,
+                      fontFamily: 'var(--font-hud)',
+                      fontWeight: 800,
+                      letterSpacing: '0.5px',
                       cursor: isLocked ? 'not-allowed' : 'pointer',
                       transition: 'all 0.2s',
-                      opacity: isLocked ? 0.6 : 1
+                      opacity: isLocked ? 0.5 : 1,
+                      boxShadow: glow
                     }}
                   >
                     <span>{stg.icon}</span>
-                    <span>Stage {stg.id}</span>
+                    <span>{stageShortLabels[stg.id] || `Stage ${stg.id}`}</span>
                     {isDone && <span style={{ color: 'var(--ok)' }}>✓</span>}
                     {isLocked && <span style={{ fontSize: '11px', opacity: 0.7 }}>🔒</span>}
                   </button>
@@ -1090,23 +1153,32 @@ function VictoryScreen({
         style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 100 }}
       />
 
-      <div style={{ maxWidth: '600px', width: '100%', zIndex: 10 }}>
-        <Card glow style={{ textAlign: 'center', padding: '32px 24px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎉</div>
+      <div style={{ maxWidth: '640px', width: '100%', zIndex: 10 }}>
+        <Card glow style={{ textAlign: 'center', padding: '36px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '14px' }}>
+            <div className="poster-fastest-ribbon">
+              <span>🏆</span>
+              <span>FINAL OVERRIDE COMPLETE</span>
+            </div>
+          </div>
+
           <h1
             style={{
-              fontSize: '28px',
+              fontFamily: 'var(--font-display)',
+              fontSize: '32px',
               fontWeight: 900,
               background: 'var(--grad-title)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              marginBottom: '10px'
+              marginBottom: '8px',
+              letterSpacing: '1px',
+              filter: 'drop-shadow(0 0 16px rgba(0, 240, 255, 0.7))'
             }}
           >
             SYSTEM UNLOCKED
           </h1>
-          <p style={{ color: 'var(--cyan)', fontSize: '16px', fontWeight: 700, marginBottom: '20px' }}>
-            Congratulations, Squad {state.teamName}!
+          <p style={{ color: 'var(--cyan)', fontSize: '18px', fontWeight: 800, fontFamily: 'var(--font-hud)', marginBottom: '20px', letterSpacing: '0.5px' }}>
+            Outstanding Work, Squad {state.teamName}!
           </p>
 
           <div

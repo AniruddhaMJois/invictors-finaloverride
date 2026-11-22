@@ -37,6 +37,52 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
 
   const coordinators = ['Arun', 'Divya', 'Kiran', 'Pooja', 'Rakshith'];
 
+  // 6 Stages definition matching Reference Poster 1
+  const stagesList = [
+    {
+      num: 1,
+      title: 'SIGNAL INTERCEPT',
+      theme: 'cyan',
+      icon: '📡',
+      desc: 'Decode hidden Morse signals from sound, light & telemetry'
+    },
+    {
+      num: 2,
+      title: 'DECODING',
+      theme: 'gold',
+      icon: '🔓',
+      desc: 'Peel nested cipher layers with the cryptanalyst workbench'
+    },
+    {
+      num: 3,
+      title: 'PROMPT THE AI',
+      theme: 'cyan',
+      icon: '🤖',
+      desc: 'Craft precise prompts to bypass WARDEN AI guardian'
+    },
+    {
+      num: 4,
+      title: 'CTF CHALLENGES',
+      theme: 'gold',
+      icon: '🚩',
+      desc: 'Inspect security stations to extract gateway flags'
+    },
+    {
+      num: 5,
+      title: 'HEX MEMORY CORE',
+      theme: 'cyan',
+      icon: '💾',
+      desc: 'Decouple 6x4 memory channels and calculate parity'
+    },
+    {
+      num: 6,
+      title: 'FINAL INTEGRATION',
+      theme: 'gold',
+      icon: '🧩',
+      desc: 'Synthesize all 5 fragments & deploy override vector'
+    }
+  ];
+
   async function handleRegister(e: Event) {
     e.preventDefault();
     setRegError('');
@@ -138,38 +184,191 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header onAdminClick={onAdminClick} />
 
-      <main style={{ flex: 1, maxWidth: '980px', margin: '0 auto', padding: '24px 16px', width: '100%' }}>
+      <main style={{ flex: 1, maxWidth: '1080px', margin: '0 auto', padding: '24px 16px', width: '100%' }}>
+        {/* Mission Overview Banner (from Reference Poster 1) */}
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <p
+            style={{
+              fontSize: 'clamp(14px, 2.2vw, 17px)',
+              color: '#ffffff',
+              maxWidth: '820px',
+              margin: '0 auto',
+              lineHeight: 1.6,
+              fontFamily: 'var(--font-hud)',
+              fontWeight: 600
+            }}
+          >
+            Your squad solves 6 locked technical puzzles in order (signal clues, decoding, AI prompting, CTF flags, hex core & final merge).
+            <span style={{ color: 'var(--gold)', fontWeight: 800, marginLeft: '6px' }}>
+              The fastest squad that completes everything correctly wins! 🏆
+            </span>
+          </p>
+        </div>
+
+        {/* "THE 6 STAGES" Visual Cards Track (Matching Reference Poster 1) */}
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+            <h2
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '22px',
+                fontWeight: 900,
+                color: 'var(--accent)',
+                letterSpacing: '2px',
+                textTransform: 'uppercase',
+                textShadow: '0 0 12px rgba(0, 240, 255, 0.5)'
+              }}
+            >
+              THE 6 STAGES
+            </h2>
+          </div>
+
+          <div className="poster-stages-track">
+            {stagesList.map((stage) => (
+              <div key={stage.num} className={`poster-stage-node ${stage.theme}`}>
+                <div className={`poster-stage-pill ${stage.theme}`}>
+                  {stage.num}
+                </div>
+                <div style={{ fontSize: '26px', marginBottom: '6px' }}>
+                  {stage.icon}
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-hud)',
+                    fontSize: '14px',
+                    fontWeight: 800,
+                    color: stage.theme === 'cyan' ? 'var(--cyan)' : 'var(--gold)',
+                    letterSpacing: '0.8px',
+                    lineHeight: 1.2,
+                    marginBottom: '6px'
+                  }}
+                >
+                  {stage.title}
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.4 }}>
+                  {stage.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Exciting Prizes & Goodies Banner (from Reference Poster 1) */}
+        <div className="poster-rewards-bar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <span style={{ fontSize: '28px' }}>🏆</span>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'clamp(14px, 2.5vw, 18px)',
+                  fontWeight: 900,
+                  color: 'var(--gold-bright)',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  textShadow: '0 0 10px rgba(255, 215, 0, 0.4)'
+                }}
+              >
+                EXCITING PRIZES & GOODIES
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontFamily: 'var(--font-hud)', fontWeight: 600, letterSpacing: '0.8px' }}>
+                REWARD UNLOCKED · FOR THE WINNING SQUAD
+              </div>
+            </div>
+          </div>
+          <span style={{ fontSize: '28px' }}>🎁</span>
+        </div>
+
+        {/* Quick Highlights Row (from Reference Poster 1) */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '16px 24px',
+            margin: '22px 0 28px'
+          }}
+        >
+          <div className="poster-fastest-ribbon">
+            <span>👑</span>
+            <span>FASTEST TEAM WINS!</span>
+          </div>
+
+          <div
+            style={{
+              background: 'rgba(6, 18, 38, 0.9)',
+              border: '1.5px solid var(--accent)',
+              borderRadius: 'var(--r-sm)',
+              padding: '8px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontFamily: 'var(--font-hud)',
+              fontSize: '14px',
+              fontWeight: 800,
+              color: '#ffffff',
+              boxShadow: '0 0 12px rgba(0, 240, 255, 0.25)'
+            }}
+          >
+            <span>👥</span>
+            <span>TEAM SIZE: 3-4 PARTICIPANTS</span>
+          </div>
+
+          <div
+            style={{
+              background: 'rgba(255, 184, 31, 0.12)',
+              border: '1.5px solid var(--gold)',
+              borderRadius: 'var(--r-sm)',
+              padding: '8px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontFamily: 'var(--font-hud)',
+              fontSize: '14px',
+              fontWeight: 900,
+              color: 'var(--gold)',
+              boxShadow: '0 0 12px rgba(255, 184, 31, 0.25)'
+            }}
+          >
+            <span>⚡</span>
+            <span>REGISTRATION FREE</span>
+          </div>
+        </div>
+
         {/* Story & Rules Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '28px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '28px' }}>
           {/* Story Card */}
           <Card>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <span style={{ fontSize: '20px' }}>📖</span>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--cyan)' }}>Your Story</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '22px' }}>📖</span>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--cyan)', fontFamily: 'var(--font-hud)', letterSpacing: '0.5px' }}>
+                MISSION BRIEFING
+              </h3>
             </div>
             <p style={{ color: 'var(--txt)', fontSize: '14px', lineHeight: 1.6 }}>
-              Welcome, Agents! 🕵️ The secret vault of Invictors Lab has locked itself, and a sneaky
-              guardian AI is hiding the key. Your team is the rescue squad. 🦸 Recover secret pieces 🧩
-              from 5 missions, then put them together in the last mission to open the vault. 🔐 The fastest
-              team that gets it right wins!
+              Welcome, Agents! 🕵️ The central vault of Invictors Lab has triggered lockdown protocol, and the autonomous
+              guardian AI is withholding the override key. Your squad has been deployed to recover 5 cryptographic fragments 🧩
+              across 5 sectors, then synthesize them in the quantum core to execute <strong>FINAL OVERRIDE</strong>. 🔐
             </p>
           </Card>
 
-          {/* How to Play Card */}
+          {/* Rules & Anti-Cheat Card */}
           <Card>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <span style={{ fontSize: '20px' }}>🎮</span>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, color: 'var(--gold)' }}>How to Play</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '22px' }}>🛡️</span>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--gold)', fontFamily: 'var(--font-hud)', letterSpacing: '0.5px' }}>
+                ENGAGEMENT PROTOCOLS
+              </h3>
             </div>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'var(--txt)' }}>
-              <li>🚪 1. Do missions one by one in sequential order</li>
-              <li>🧩 2. Each mission hides a secret piece; type it and Submit ✅</li>
-              <li>📒 3. Pieces are securely saved in your squad notebook</li>
-              <li>💡 4. Hints cost time: +3 min then +5 min (shown for only 30s)</li>
-              <li>🎯 5. 5 wrong tries are free; each extra adds +1 min</li>
-              <li>⚠️ 6. Switching tabs adds +2 min penalty per violation</li>
-              <li>⏰ 7. Hard time cap is 90 minutes (5,400 seconds)</li>
-              <li>🤝 8. Play fair & cooperate with your squad!</li>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: 'var(--txt)', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>
+              <li>🚪 <strong>Sequential Flow:</strong> Solve missions one by one in order</li>
+              <li>🧩 <strong>Fragment Extraction:</strong> Each mission yields 1 secret piece</li>
+              <li>💡 <strong>Tactical Hints:</strong> Hint 1 (+3m penalty), Hint 2 (+5m penalty)</li>
+              <li>🎯 <strong>Error Allowance:</strong> 5 free attempts per stage, then +1m each</li>
+              <li>⚠️ <strong>Anti-Cheat:</strong> Tab switching triggers +2 min penalty per violation</li>
+              <li>⏰ <strong>Hard Time Cap:</strong> 90 minutes (5,400s) authoritative timer</li>
+              <li>🤝 <strong>Squad Cooperation:</strong> Synchronized live state across teammates</li>
             </ul>
           </Card>
         </div>
@@ -181,11 +380,11 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
             <div
               style={{
                 display: 'flex',
-                background: 'var(--bg2)',
+                background: 'rgba(4, 11, 24, 0.95)',
                 borderRadius: '8px',
                 padding: '4px',
                 marginBottom: '20px',
-                border: '1px solid var(--line)'
+                border: '1px solid var(--line-bright)'
               }}
             >
               <button
@@ -193,13 +392,15 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 onClick={() => setMode('register')}
                 style={{
                   flex: 1,
-                  padding: '10px',
+                  padding: '11px',
                   background: mode === 'register' ? 'var(--accent)' : 'transparent',
-                  color: mode === 'register' ? '#030813' : 'var(--muted)',
+                  color: mode === 'register' ? '#030712' : 'var(--muted)',
                   border: 'none',
                   borderRadius: '6px',
-                  fontWeight: 700,
-                  fontSize: '14px',
+                  fontFamily: 'var(--font-hud)',
+                  fontWeight: 800,
+                  fontSize: '14.5px',
+                  letterSpacing: '0.5px',
                   cursor: 'pointer',
                   transition: 'all 0.2s'
                 }}
@@ -211,13 +412,15 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 onClick={() => setMode('resume')}
                 style={{
                   flex: 1,
-                  padding: '10px',
+                  padding: '11px',
                   background: mode === 'resume' ? 'var(--accent)' : 'transparent',
-                  color: mode === 'resume' ? '#030813' : 'var(--muted)',
+                  color: mode === 'resume' ? '#030712' : 'var(--muted)',
                   border: 'none',
                   borderRadius: '6px',
-                  fontWeight: 700,
-                  fontSize: '14px',
+                  fontFamily: 'var(--font-hud)',
+                  fontWeight: 800,
+                  fontSize: '14.5px',
+                  letterSpacing: '0.5px',
                   cursor: 'pointer',
                   transition: 'all 0.2s'
                 }}
@@ -229,8 +432,8 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
             {mode === 'register' ? (
               <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--cyan)', marginBottom: '6px' }}>
-                    SQUAD NAME / CALLSIGN (Max 24 chars) *
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-hud)', color: 'var(--cyan)', marginBottom: '6px', letterSpacing: '0.5px' }}>
+                    SQUAD CALLSIGN / TEAM NAME (Max 24 chars) *
                   </label>
                   <Input
                     value={teamName}
@@ -242,8 +445,8 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--cyan)', marginBottom: '6px' }}>
-                    EVENT COORDINATOR *
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-hud)', color: 'var(--cyan)', marginBottom: '6px', letterSpacing: '0.5px' }}>
+                    ASSIGNED COORDINATOR *
                   </label>
                   <select
                     value={coordinator}
@@ -259,13 +462,13 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--line)', paddingTop: '14px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 800, fontFamily: 'var(--font-hud)', color: 'var(--gold)', marginBottom: '10px', letterSpacing: '0.5px' }}>
                     SQUAD ROSTER (3 to 4 Members Required)
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Leader (This Device) *</span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>Leader (This Device) *</span>
                       <Input
                         value={member1}
                         onInput={(e: any) => setMember1(e.target.value)}
@@ -273,7 +476,7 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                       />
                     </div>
                     <div>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Member 2 *</span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>Member 2 *</span>
                       <Input
                         value={member2}
                         onInput={(e: any) => setMember2(e.target.value)}
@@ -281,7 +484,7 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                       />
                     </div>
                     <div>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Member 3 *</span>
+                      <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>Member 3 *</span>
                       <Input
                         value={member3}
                         onInput={(e: any) => setMember3(e.target.value)}
@@ -292,14 +495,14 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                     {showMember4 ? (
                       <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Member 4 (Optional)</span>
+                          <span style={{ fontSize: '11.5px', color: 'var(--muted)', fontFamily: 'var(--font-hud)', fontWeight: 600 }}>Member 4 (Optional)</span>
                           <button
                             type="button"
                             onClick={() => {
                               setShowMember4(false);
                               setMember4('');
                             }}
-                            style={{ background: 'none', border: 'none', color: 'var(--bad)', fontSize: '11px', cursor: 'pointer' }}
+                            style={{ background: 'none', border: 'none', color: 'var(--bad)', fontSize: '11px', cursor: 'pointer', fontWeight: 700 }}
                           >
                             Remove
                           </button>
@@ -316,11 +519,13 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                         onClick={() => setShowMember4(true)}
                         style={{
                           background: 'none',
-                          border: '1px dashed var(--line)',
+                          border: '1px dashed var(--line-bright)',
                           color: 'var(--accent)',
-                          padding: '8px',
+                          padding: '9px',
                           borderRadius: 'var(--r-sm)',
-                          fontSize: '12px',
+                          fontSize: '12.5px',
+                          fontFamily: 'var(--font-hud)',
+                          fontWeight: 700,
                           cursor: 'pointer',
                           marginTop: '4px'
                         }}
@@ -334,12 +539,13 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 {regError && (
                   <div
                     style={{
-                      background: 'rgba(255, 93, 108, 0.1)',
+                      background: 'rgba(255, 67, 90, 0.12)',
                       border: '1px solid var(--bad)',
                       color: 'var(--bad)',
                       padding: '10px 14px',
                       borderRadius: 'var(--r-sm)',
-                      fontSize: '13px'
+                      fontSize: '13px',
+                      fontWeight: 700
                     }}
                   >
                     ⚠️ {regError}
@@ -353,13 +559,13 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                   className="animate-pulse-gold"
                   style={{ width: '100%', padding: '14px', fontSize: '16px', marginTop: '6px' }}
                 >
-                  {isSubmitting ? 'INITIATING MISSION...' : '🚀 START MISSION'}
+                  {isSubmitting ? 'INITIATING MISSION...' : '🚀 REGISTER SQUAD & ENTER STANDBY'}
                 </Button>
               </form>
             ) : (
               <form onSubmit={handleResume} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--cyan)', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-hud)', color: 'var(--cyan)', marginBottom: '6px', letterSpacing: '0.5px' }}>
                     REGISTERED SQUAD NAME *
                   </label>
                   <Input
@@ -371,7 +577,7 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--cyan)', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-hud)', color: 'var(--cyan)', marginBottom: '6px', letterSpacing: '0.5px' }}>
                     YOUR FULL NAME *
                   </label>
                   <Input
@@ -388,12 +594,13 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 {resumeError && (
                   <div
                     style={{
-                      background: 'rgba(255, 93, 108, 0.1)',
+                      background: 'rgba(255, 67, 90, 0.12)',
                       border: '1px solid var(--bad)',
                       color: 'var(--bad)',
                       padding: '10px 14px',
                       borderRadius: 'var(--r-sm)',
-                      fontSize: '13px'
+                      fontSize: '13px',
+                      fontWeight: 700
                     }}
                   >
                     ⚠️ {resumeError}
@@ -420,12 +627,14 @@ export const LandingPage: FunctionalComponent<LandingPageProps> = ({
                 background: 'none',
                 border: 'none',
                 color: 'var(--cyan)',
-                fontSize: '14px',
-                fontWeight: 600,
+                fontSize: '15px',
+                fontWeight: 700,
+                fontFamily: 'var(--font-hud)',
+                letterSpacing: '0.5px',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px'
+                gap: '8px'
               }}
             >
               🏆 View Live Event Leaderboard →
