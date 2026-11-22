@@ -7,18 +7,8 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    await ensureInitialized();
-    const session = await getTeamSession(request);
-    if (!session) {
-      return NextResponse.json({ error: 'Device token missing or expired.' }, { status: 401 });
-    }
-
-    if (!gameEngine.teams.has(session.teamId)) {
-      await gameEngine.loadTeamFromDb(session.teamId);
-    }
-
-    const result = await gameEngine.recordTabViolation(session.teamId);
-    return NextResponse.json(result);
+    // Malpractice / tab switch monitoring temporarily disabled by organizer directive
+    return NextResponse.json({ success: true, disabled: true, message: 'Tab monitoring is temporarily disabled.' });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }

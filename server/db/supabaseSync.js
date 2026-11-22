@@ -109,14 +109,7 @@ export const supabaseSync = {
   async syncSubmitAnswer(teamId, stage, fragment, isCompleted, endTime, answer, ok, wrongAttempts, nextStage) {
     if (!this.isConfigured()) return;
     try {
-      await supabase.from('submissions').insert({
-        team_id: teamId,
-        stage,
-        answer,
-        at: Date.now(),
-        ok: Boolean(ok)
-      });
-
+      // Note: db.run already logs submissions into Supabase PostgreSQL directly to prevent duplicate rows.
       if (ok) {
         await supabase.from('progress').upsert({
           team_id: teamId,
@@ -154,17 +147,8 @@ export const supabaseSync = {
   },
 
   async syncViolation(teamId, at, penaltySeconds) {
-    if (!this.isConfigured()) return;
-    try {
-      await supabase.from('violations').insert({
-        team_id: teamId,
-        at,
-        penalty_seconds: penaltySeconds || 120,
-        waived: false
-      });
-    } catch (err) {
-      console.warn('⚠️ Supabase syncViolation error:', err.message);
-    }
+    // Note: db.run already logs violations directly into Supabase PostgreSQL to prevent duplicate rows.
+    return;
   },
 
   async syncStageData(teamId, stage, key, value) {

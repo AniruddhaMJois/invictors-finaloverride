@@ -2,12 +2,17 @@
 
 import { useEffect, useRef } from 'react';
 
+// Set to true when instructed by admin to re-enable tab switch monitoring
+export const ANTI_CHEAT_ENABLED = false;
+
 export function useAntiCheat(onViolationDetected: () => void) {
   const hiddenStartTime = useRef<number | null>(null);
   const mountTime = useRef<number>(Date.now());
   const lastViolationReport = useRef<number>(0);
 
   useEffect(() => {
+    if (!ANTI_CHEAT_ENABLED) return;
+
     mountTime.current = Date.now();
 
     function handleHidden() {
