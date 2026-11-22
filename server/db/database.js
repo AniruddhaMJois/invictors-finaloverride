@@ -311,7 +311,6 @@ export class DatabaseManager {
     await this.run(`
       CREATE TABLE IF NOT EXISTS public.team_allotments (
         team_number INT PRIMARY KEY,
-        team_name VARCHAR(64) UNIQUE NOT NULL,
         set_id VARCHAR(8) NOT NULL REFERENCES public.question_sets(set_id),
         created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
       );

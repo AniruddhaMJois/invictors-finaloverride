@@ -464,56 +464,32 @@ export class GameEngine {
       assignedSetId = 'E';
     } else {
       try {
-        let matchedAllotment = null;
-
-        // 1. Direct number extraction: "Team 15", "15", "Team 01", "Team-15", "Trinetra (Team 1)", etc.
-        const numMatch = cleanTeamName.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || cleanTeamName.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
         let extractedTeamNum = null;
+        const numMatch =
+          cleanTeamName.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) ||
+          cleanTeamName.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
+
         if (numMatch) {
           extractedTeamNum = parseInt(numMatch[1], 10);
-          matchedAllotment = await db.get(
-            'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE team_number = ?',
-            [extractedTeamNum]
-          );
-        }
-
-        // 2. Direct exact name lookup
-        if (!matchedAllotment) {
-          matchedAllotment = await db.get(
-            'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(?))',
-            [cleanTeamName]
-          );
-        }
-
-        // 3. Normalized / fuzzy lookup across all 23 allotments
-        if (!matchedAllotment) {
-          const allAllotments = await db.all('SELECT team_number, team_name, set_id FROM public.team_allotments');
-          const normalize = (s) => (s || '').normalize('NFKD').replace(/[^a-z0-9]/gi, '').toLowerCase();
-          const normInput = normalize(cleanTeamName);
-
-          matchedAllotment = allAllotments.find((a) => {
-            const normName = normalize(a.team_name);
-            return (
-              normName === normInput ||
-              normInput === `team${a.team_number}` ||
-              normInput === String(a.team_number) ||
-              normInput.includes(normName) ||
-              normName.includes(normInput)
-            );
-          });
-        }
-
-        if (matchedAllotment && matchedAllotment.team_number) {
-          assignedTeamNumber = parseInt(matchedAllotment.team_number, 10);
-          assignedSetId = matchedAllotment.set_id || 'A';
         } else {
           // Sequential chronological assignment based on registration timestamp
           const countRow = await db.get(
             "SELECT COUNT(*) as count FROM teams WHERE LOWER(name) NOT LIKE '%demo%' AND LOWER(name) NOT LIKE 'dem%'"
           );
-          const nextSeq = (countRow && countRow.count ? parseInt(countRow.count, 10) : 0) + 1;
-          assignedTeamNumber = nextSeq;
+          extractedTeamNum = (countRow && countRow.count ? parseInt(countRow.count, 10) : 0) + 1;
+        }
 
+        assignedTeamNumber = extractedTeamNum;
+
+        // Query team_allotments using team_number only (only team number and set matter)
+        const matchedAllotment = await db.get(
+          'SELECT team_number, set_id FROM public.team_allotments WHERE team_number = ?',
+          [assignedTeamNumber]
+        );
+
+        if (matchedAllotment && matchedAllotment.set_id) {
+          assignedSetId = matchedAllotment.set_id;
+        } else {
           if (assignedTeamNumber >= 1 && assignedTeamNumber <= 6) assignedSetId = 'A';
           else if (assignedTeamNumber >= 7 && assignedTeamNumber <= 12) assignedSetId = 'B';
           else if (assignedTeamNumber >= 13 && assignedTeamNumber <= 18) assignedSetId = 'C';
