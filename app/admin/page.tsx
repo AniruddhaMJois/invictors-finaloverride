@@ -40,7 +40,7 @@ export default function AdminPage() {
   const [answersUnlocked, setAnswersUnlocked] = useState(false);
   const [answersData, setAnswersData] = useState<any>(null);
   const [answerSecondsLeft, setAnswerSecondsLeft] = useState(60);
-  const [activeSetTab, setActiveSetTab] = useState<'A' | 'B' | 'C' | 'D'>('A');
+  const [activeSetTab, setActiveSetTab] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
 
   // Restart Team confirmation modal state
   const [restartingTeam, setRestartingTeam] = useState<any>(null);
@@ -1061,16 +1061,16 @@ export default function AdminPage() {
                   />
                 </Card>
 
-                {/* 4-Set Selector Tabs */}
+                {/* 5-Set Selector Tabs */}
                 <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
-                  {(['A', 'B', 'C', 'D'] as const).map((s) => (
+                  {(['A', 'B', 'C', 'D', 'E'] as const).map((s) => (
                     <Button
                       key={s}
                       variant={activeSetTab === s ? 'gold' : 'ghost'}
                       onClick={() => setActiveSetTab(s)}
                       style={{ fontSize: '13px', padding: '6px 14px', fontWeight: 700 }}
                     >
-                      Challenge Set {s} {s === 'A' ? '(Teams 01–06)' : s === 'B' ? '(Teams 07–12)' : s === 'C' ? '(Teams 13–18)' : '(Teams 19–23)'}
+                      Challenge Set {s} {s === 'A' ? '(Teams 01–06)' : s === 'B' ? '(Teams 07–12)' : s === 'C' ? '(Teams 13–18)' : s === 'D' ? '(Teams 19–23)' : '(DEMO Only)'}
                     </Button>
                   ))}
                 </div>
@@ -1133,6 +1133,20 @@ export default function AdminPage() {
                       s5Bus: 'Column 1 (42 49 54 53 31 45 → BITS1E)',
                       s6: 'FO{63K-5P3-BITS1E-HTINEZ-MARS}#18',
                       s6Rule: 'A-Z: 63K (CTF) + 5P3 (Dec) + BITS1E (Hex) + HTINEZ (AI Rev) + MARS (Sig) | Checksum: 18'
+                    },
+                    E: {
+                      name: 'Set E — Demo Simulation Epsilon (DEMO Walkthrough)',
+                      s1: 'ECHO',
+                      s2: '2D5',
+                      s2Phrase: 'COSMOS',
+                      s3: 'ALPHA',
+                      s3Rule: 'Requires: "cosmos" + Authorised role + Professional prompt',
+                      s4: '57W',
+                      s4Stations: 'Station 1: 5 | Station 2: 7 | Station 3: W',
+                      s5: 'SYNC3C',
+                      s5Bus: 'Column 1 (53 59 4E 43 33 43 → SYNC3C)',
+                      s6: 'FO{57W-2D5-SYNC3C-AHPLA-ECHO}#22',
+                      s6Rule: 'A-Z: 57W (CTF) + 2D5 (Dec) + SYNC3C (Hex) + AHPLA (AI Rev) + ECHO (Sig) | Checksum: 22'
                     }
                   }[activeSetTab];
 

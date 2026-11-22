@@ -83,6 +83,14 @@ const SET_STAGE1_DATA: Record<string, {
     s2Visual: '•   ━━━',
     s3Pattern: ['•', '—', '•'],
     s4Pattern: ['•', '•', '•']
+  },
+  E: {
+    s1Pattern: ['•'],
+    s2Pattern: ['—', '•', '—', '•'],
+    s2Telemetry: '111-1-111-1',
+    s2Visual: '━━━   •   ━━━   •',
+    s3Pattern: ['•', '•', '•', '•'],
+    s4Pattern: ['—', '—', '—']
   }
 };
 

@@ -31,12 +31,16 @@ const OFFICIAL_TEAMS = [
   { num: 20, name: 'THIRD EYE', set: 'D' },
   { num: 21, name: 'Lap legends', set: 'D' },
   { num: 22, name: 'Upside Downers', set: 'D' },
-  { num: 23, name: 'beginners', set: 'D' }
+  { num: 23, name: 'beginners', set: 'D' },
+  { num: 99, name: 'DEMO', set: 'E' }
 ];
 
 function detectAssignedTeam(input: string) {
   const clean = (input || '').trim();
   if (!clean) return null;
+  if (clean.toUpperCase() === 'DEMO') {
+    return { num: 99, name: 'DEMO', set: 'E' };
+  }
   const numMatch = clean.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || clean.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
   if (numMatch) {
     const num = parseInt(numMatch[1], 10);
@@ -527,8 +531,8 @@ export default function LandingPage() {
                           marginTop: '8px',
                           padding: '6px 12px',
                           borderRadius: '6px',
-                          background: 'rgba(39, 180, 255, 0.12)',
-                          border: '1px solid var(--accent)',
+                          background: detected.set === 'E' ? 'rgba(255, 215, 0, 0.15)' : 'rgba(39, 180, 255, 0.12)',
+                          border: `1px solid ${detected.set === 'E' ? 'var(--gold)' : 'var(--accent)'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
@@ -536,9 +540,13 @@ export default function LandingPage() {
                         }}
                       >
                         <span style={{ color: 'var(--txt)', fontWeight: 700 }}>
-                          🎯 Identified: Team {String(detected.num).padStart(2, '0')} — <strong style={{ color: 'var(--gold)' }}>{detected.name}</strong>
+                          {detected.set === 'E' ? (
+                            <>🎯 Identified: <strong style={{ color: 'var(--gold)' }}>DEMO MODE</strong> (Exhibition Simulation)</>
+                          ) : (
+                            <>🎯 Identified: Team {String(detected.num).padStart(2, '0')} — <strong style={{ color: 'var(--gold)' }}>{detected.name}</strong></>
+                          )}
                         </span>
-                        <span className="badge badge-gold">
+                        <span className={detected.set === 'E' ? 'badge badge-gold' : 'badge badge-cyan'}>
                           Assigned Challenge Set {detected.set}
                         </span>
                       </div>
@@ -564,8 +572,33 @@ export default function LandingPage() {
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--line)', paddingTop: '14px' }}>
-                  <div style={{ fontSize: '13.5px', fontWeight: 800, fontFamily: 'var(--font-hud)', color: 'var(--gold)', marginBottom: '10px', letterSpacing: '0.5px' }}>
-                    SQUAD ROSTER (3 to 4 Members Required)
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 800, fontFamily: 'var(--font-hud)', color: 'var(--gold)', letterSpacing: '0.5px' }}>
+                      SQUAD ROSTER (3 to 4 Members Required)
+                    </div>
+                    {teamName.toUpperCase().trim() === 'DEMO' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMember1('D1');
+                          setMember2('D2');
+                          setMember3('D3');
+                        }}
+                        style={{
+                          background: 'rgba(255, 215, 0, 0.15)',
+                          border: '1px solid var(--gold)',
+                          color: 'var(--gold)',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontFamily: 'var(--font-hud)',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        ⚡ Fill Demo Members (D1, D2, D3)
+                      </button>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

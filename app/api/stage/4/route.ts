@@ -75,6 +75,18 @@ const SET_STATION_DATA: Record<string, { s1Clearance: string; activeSymbol: stri
       { shape: 'diamond', letter: 'P' },
       { shape: 'pentagon', letter: 'Q' }
     ]
+  },
+  E: {
+    s1Clearance: 'L5',
+    activeSymbol: 'circle',
+    legend: [
+      { shape: 'circle', letter: 'W' },
+      { shape: 'triangle', letter: 'R' },
+      { shape: 'square', letter: 'T' },
+      { shape: 'star', letter: 'U' },
+      { shape: 'diamond', letter: 'V' },
+      { shape: 'pentagon', letter: 'Y' }
+    ]
   }
 };
 

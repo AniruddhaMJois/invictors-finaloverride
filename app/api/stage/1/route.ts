@@ -29,6 +29,12 @@ const SET_STAGE1_SECTORS: Record<string, any[]> = {
     { id: 2, title: 'Sector 2: Binary Telemetry Feed', type: 'binary_feed', description: 'Monospace telemetry stream with high-state pulse blocks', pattern: ['•', '—'], telemetryBlock: '1-111', caption: 'Short = •   Long = —' },
     { id: 3, title: 'Sector 3: Optical Strobe Beacon', type: 'optical_strobe', description: 'Visual amber strobe lamp with optical pulse intervals', pattern: ['•', '—', '•'], caption: 'Short = •   Long = —' },
     { id: 4, title: 'Sector 4: Satellite Relay Feed', type: 'satellite_relay', description: 'Carrier-wave audio feed and visual pulse spectrogram', pattern: ['•', '•', '•'], caption: 'Short = •   Long = —' }
+  ],
+  E: [
+    { id: 1, title: 'Sector 1: Oscilloscope / Pulse Graph', type: 'oscilloscope', description: 'Phosphor oscilloscope pulse trace with carrier frequency', pattern: ['•'], caption: 'Short = •   Long = —' },
+    { id: 2, title: 'Sector 2: Binary Telemetry Feed', type: 'binary_feed', description: 'Monospace telemetry stream with high-state pulse blocks', pattern: ['—', '•', '—', '•'], telemetryBlock: '111-1-111-1', caption: 'Short = •   Long = —' },
+    { id: 3, title: 'Sector 3: Optical Strobe Beacon', type: 'optical_strobe', description: 'Visual amber strobe lamp with optical pulse intervals', pattern: ['•', '•', '•', '•'], caption: 'Short = •   Long = —' },
+    { id: 4, title: 'Sector 4: Satellite Relay Feed', type: 'satellite_relay', description: 'Carrier-wave audio feed and visual pulse spectrogram', pattern: ['—', '—', '—'], caption: 'Short = •   Long = —' }
   ]
 };
 

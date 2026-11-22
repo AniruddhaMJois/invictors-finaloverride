@@ -25,7 +25,8 @@ const SET_DEFAULTS: Record<string, Record<number, string>> = {
   A: { 1: 'NOVA', 2: '7K2', 3: 'ORBIT', 4: '91X', 5: 'HEX82D' },
   B: { 1: 'LUNA', 2: '4M9', 3: 'SOLAR', 4: '84Z', 5: 'CORE7F' },
   C: { 1: 'VEGA', 2: '3X8', 3: 'TITAN', 4: '72Y', 5: 'BYTE9A' },
-  D: { 1: 'MARS', 2: '5P3', 3: 'ZENITH', 4: '63K', 5: 'BITS1E' }
+  D: { 1: 'MARS', 2: '5P3', 3: 'ZENITH', 4: '63K', 5: 'BITS1E' },
+  E: { 1: 'ECHO', 2: '2D5', 3: 'ALPHA', 4: '57W', 5: 'SYNC3C' }
 };
 
 export const Stage6Module: React.FC = () => {

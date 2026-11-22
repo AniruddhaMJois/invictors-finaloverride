@@ -411,7 +411,11 @@ export class GameEngine {
       return testFallbacks.includes(lower);
     };
 
-    if (!isCoordValid(coordinator)) {
+    const isDemo = cleanTeamName.toUpperCase() === 'DEMO';
+    let chosenCoord = coordinator;
+    if (isDemo && (!chosenCoord || !isCoordValid(chosenCoord))) {
+      chosenCoord = (CONFIG.COORDINATORS && CONFIG.COORDINATORS[0]?.name) || 'Akul P Yadav';
+    } else if (!isCoordValid(chosenCoord)) {
       throw new Error('Please select a valid event coordinator.');
     }
 
@@ -433,60 +437,64 @@ export class GameEngine {
 
     const now = Date.now();
     const teamPin = `FO-${Math.floor(1000 + Math.random() * 9000)}`;
-    const teamStartTime = (this.gameStarted || isTestRunner()) ? now : null;
+    const teamStartTime = (isDemo || this.gameStarted || isTestRunner()) ? now : null;
 
     let assignedSetId = 'A';
-    try {
-      let matchedAllotment = null;
+    if (isDemo) {
+      assignedSetId = 'E';
+    } else {
+      try {
+        let matchedAllotment = null;
 
-      // 1. Direct number extraction: "Team 15", "15", "Team 01", "Team-15", "Trinetra (Team 1)", etc.
-      const numMatch = cleanTeamName.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || cleanTeamName.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
-      let extractedTeamNum = null;
-      if (numMatch) {
-        extractedTeamNum = parseInt(numMatch[1], 10);
-        matchedAllotment = await db.get(
-          'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE team_number = ?',
-          [extractedTeamNum]
-        );
-      }
-
-      // 2. Direct exact name lookup
-      if (!matchedAllotment) {
-        matchedAllotment = await db.get(
-          'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(?))',
-          [cleanTeamName]
-        );
-      }
-
-      // 3. Normalized / fuzzy lookup across all 23 allotments
-      if (!matchedAllotment) {
-        const allAllotments = await db.all('SELECT team_number, team_name, set_id FROM public.team_allotments');
-        const normalize = (s) => (s || '').normalize('NFKD').replace(/[^a-z0-9]/gi, '').toLowerCase();
-        const normInput = normalize(cleanTeamName);
-
-        matchedAllotment = allAllotments.find((a) => {
-          const normName = normalize(a.team_name);
-          return (
-            normName === normInput ||
-            normInput === `team${a.team_number}` ||
-            normInput === String(a.team_number) ||
-            normInput.includes(normName) ||
-            normName.includes(normInput)
+        // 1. Direct number extraction: "Team 15", "15", "Team 01", "Team-15", "Trinetra (Team 1)", etc.
+        const numMatch = cleanTeamName.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || cleanTeamName.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
+        let extractedTeamNum = null;
+        if (numMatch) {
+          extractedTeamNum = parseInt(numMatch[1], 10);
+          matchedAllotment = await db.get(
+            'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE team_number = ?',
+            [extractedTeamNum]
           );
-        });
-      }
+        }
 
-      if (matchedAllotment && matchedAllotment.set_id) {
-        assignedSetId = matchedAllotment.set_id;
-      } else if (extractedTeamNum) {
-        // Guaranteed fallback: 1-6 -> Set A, 7-12 -> Set B, 13-18 -> Set C, 19-23 -> Set D
-        if (extractedTeamNum >= 1 && extractedTeamNum <= 6) assignedSetId = 'A';
-        else if (extractedTeamNum >= 7 && extractedTeamNum <= 12) assignedSetId = 'B';
-        else if (extractedTeamNum >= 13 && extractedTeamNum <= 18) assignedSetId = 'C';
-        else if (extractedTeamNum >= 19 && extractedTeamNum <= 23) assignedSetId = 'D';
+        // 2. Direct exact name lookup
+        if (!matchedAllotment) {
+          matchedAllotment = await db.get(
+            'SELECT team_number, team_name, set_id FROM public.team_allotments WHERE LOWER(TRIM(team_name)) = LOWER(TRIM(?))',
+            [cleanTeamName]
+          );
+        }
+
+        // 3. Normalized / fuzzy lookup across all 23 allotments
+        if (!matchedAllotment) {
+          const allAllotments = await db.all('SELECT team_number, team_name, set_id FROM public.team_allotments');
+          const normalize = (s) => (s || '').normalize('NFKD').replace(/[^a-z0-9]/gi, '').toLowerCase();
+          const normInput = normalize(cleanTeamName);
+
+          matchedAllotment = allAllotments.find((a) => {
+            const normName = normalize(a.team_name);
+            return (
+              normName === normInput ||
+              normInput === `team${a.team_number}` ||
+              normInput === String(a.team_number) ||
+              normInput.includes(normName) ||
+              normName.includes(normInput)
+            );
+          });
+        }
+
+        if (matchedAllotment && matchedAllotment.set_id) {
+          assignedSetId = matchedAllotment.set_id;
+        } else if (extractedTeamNum) {
+          // Guaranteed fallback: 1-6 -> Set A, 7-12 -> Set B, 13-18 -> Set C, 19-23 -> Set D
+          if (extractedTeamNum >= 1 && extractedTeamNum <= 6) assignedSetId = 'A';
+          else if (extractedTeamNum >= 7 && extractedTeamNum <= 12) assignedSetId = 'B';
+          else if (extractedTeamNum >= 13 && extractedTeamNum <= 18) assignedSetId = 'C';
+          else if (extractedTeamNum >= 19 && extractedTeamNum <= 23) assignedSetId = 'D';
+        }
+      } catch (e) {
+        console.warn('Could not query team_allotments:', e.message);
       }
-    } catch (e) {
-      console.warn('Could not query team_allotments:', e.message);
     }
 
     const teamInsert = await db.run(
@@ -628,6 +636,10 @@ export class GameEngine {
 
     if (this.globalPaused) {
       throw new Error('Game is currently paused by organisers.');
+    }
+
+    if (!this.gameStarted && !team.startTime && team.teamName.toUpperCase() !== 'DEMO') {
+      throw new Error('Game is currently in standby lobby. Awaiting master admin launch signal.');
     }
 
     if (team.isCompleted) {

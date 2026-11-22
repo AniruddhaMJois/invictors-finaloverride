@@ -235,6 +235,14 @@ export const SET_STAGE2_VARIANTS: Record<string, Stage2Variant> = {
       'NGU1MDUwNTI0NjQ2MjA0MzU1NDU0ZTQ2NTIyMDU2NDYyMDQxNTI0ZjQ4NTk0ZTJlMjA1MzQ1NGU1NDVhNTI0MTQ3MjA0NzRhNDIyMDU2NDYyMDM1NDMzMzJlMjA1NjU0NDE0MjQ1NTIyMDRkNTI0NzRlMzkyZQ==',
     requiredSteps: ['Base64 Decode', 'Hex Decode', 'ROT13'],
     hintClue: 'Order: Base64 Decode → Hex Decode → ROT13. Record both 5P3 and NEBULA.'
+  },
+  E: {
+    id: 105,
+    name: 'Set E (DEMO): Base64 -> Hex -> ROT13',
+    payload:
+      'NGU1MDUwNTI0NjQ2MjA0MzU1NDU0ZTQ2NTIyMDU2NDYyMDUwNDI0NjVhNDI0NjJlMjA1MzQ1NGU1NDVhNTI0MTQ3MjA0NzRhNDIyMDU2NDYyMDMyNTEzNTJlMjA1NjU0NDE0MjQ1NTIyMDUxNTI1YTQyMzAyZQ==',
+    requiredSteps: ['Base64 Decode', 'Hex Decode', 'ROT13'],
+    hintClue: 'Order: Base64 Decode → Hex Decode → ROT13. Record both 2D5 and COSMOS.'
   }
 };
 

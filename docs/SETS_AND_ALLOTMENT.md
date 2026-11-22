@@ -113,3 +113,20 @@ flowchart LR
 - **Team 21:** `Lap legends`
 - **Team 22:** `Upside Downers`
 - **Team 23:** `beginners`
+
+---
+
+## 5. Set E — Demo & Walkthrough Simulation
+
+Reserved exclusively for presentation and exhibition walkthroughs:
+- **Team Name:** `DEMO`
+- **Default Members:** `D1`, `D2`, `D3`
+- **Assigned Set:** `Set E`
+- **Answers & Fragments:**
+  - Stage 1: `ECHO` (Morse: • / —•—• / •••• / ———)
+  - Stage 2: `2D5` (Access Phrase: `COSMOS`, Decoy: `DEMO0`)
+  - Stage 3: `ALPHA` (Reversed: `AHPLA`)
+  - Stage 4: `57W` (Station 1: `5` [L5] / Station 2: `7` / Station 3: `W` [circle])
+  - Stage 5: `SYNC3C` (Column 1: `53 59 4E 43 33 43`)
+  - Stage 6: `FO{57W-2D5-SYNC3C-AHPLA-ECHO}#22` (Digits: 5+7+2+5+3 = 22)
+
