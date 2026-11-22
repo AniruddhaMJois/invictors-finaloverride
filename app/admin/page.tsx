@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card, Button, Input, Modal, CountdownRing } from '@/components/common/UI';
 import { InvictorsLogo } from '@/components/common/Logos';
-import { showToast } from '@/store';
+import { showToast, wsManager } from '@/store';
 import { supabaseBrowser } from '@/lib/supabaseClient';
 
 export default function AdminPage() {
@@ -47,6 +47,9 @@ export default function AdminPage() {
   const [restartConfirmName, setRestartConfirmName] = useState('');
   const [restartError, setRestartError] = useState('');
 
+  const isFetchingOverviewRef = useRef(false);
+  const isFetchingTeamsRef = useRef(false);
+
   // Lockout countdown timer
   useEffect(() => {
     if (lockoutSeconds <= 0) return;
@@ -61,18 +64,25 @@ export default function AdminPage() {
     checkAuthAndLoad();
 
     // Listen to WebSocket admin updates
-    const onAdminUpdate = (e: any) => {
-      if (e.detail?.type === 'admin:update') {
-        if (e.detail.overview) setOverview(e.detail.overview);
-        fetchTeams();
-      } else if (e.detail?.type === 'admin:alert') {
-        showToast(`🚨 ${e.detail.alert.coordinator}: ${e.detail.alert.message}`, 'gold');
+    const onAdminUpdate = (msg: any) => {
+      if (msg?.overview) setOverview(msg.overview);
+      fetchTeams();
+    };
+
+    const onAdminAlert = (msg: any) => {
+      if (msg?.alert) {
+        showToast(`🚨 ${msg.alert.coordinator}: ${msg.alert.message}`, 'gold');
         fetchOverview();
       }
     };
 
-    window.addEventListener('fo:ws_message', onAdminUpdate);
-    return () => window.removeEventListener('fo:ws_message', onAdminUpdate);
+    const unsubUpdate = wsManager.on('admin:update', onAdminUpdate);
+    const unsubAlert = wsManager.on('admin:alert', onAdminAlert);
+
+    return () => {
+      unsubUpdate();
+      unsubAlert();
+    };
   }, []);
 
   // Instant Supabase Realtime synchronization for Admin Portal
@@ -101,7 +111,7 @@ export default function AdminPage() {
     const interval = setInterval(() => {
       fetchOverview();
       fetchTeams();
-    }, 3000);
+    }, 5000);
 
     return () => {
       supabaseBrowser.removeChannel(channel);
@@ -189,23 +199,31 @@ export default function AdminPage() {
   }
 
   async function fetchOverview() {
+    if (isFetchingOverviewRef.current) return;
+    isFetchingOverviewRef.current = true;
     try {
       const res = await fetch('/api/admin/overview');
       if (res.ok) {
         const data = await res.json();
         setOverview(data);
       }
-    } catch {}
+    } catch {} finally {
+      isFetchingOverviewRef.current = false;
+    }
   }
 
   async function fetchTeams() {
+    if (isFetchingTeamsRef.current) return;
+    isFetchingTeamsRef.current = true;
     try {
       const res = await fetch('/api/admin/teams');
       if (res.ok) {
         const data = await res.json();
         setTeams(data.teams || []);
       }
-    } catch {}
+    } catch {} finally {
+      isFetchingTeamsRef.current = false;
+    }
   }
 
   async function fetchHints() {
@@ -677,6 +695,15 @@ export default function AdminPage() {
       {/* Main Content Area */}
       <main className="admin-main">
         {/* TAB 1: OVERVIEW */}
+        {activeTab === 'overview' && !overview && (
+          <Card style={{ padding: '60px 20px', textAlign: 'center', border: '1px dashed var(--bdr)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '14px' }}>🛰️</div>
+            <div style={{ color: 'var(--txt)', fontWeight: 700, fontSize: '16px' }}>Loading Event Telemetry...</div>
+            <div style={{ color: 'var(--muted)', fontSize: '13px', marginTop: '6px' }}>
+              Synchronizing with real-time game engine and Supabase telemetry
+            </div>
+          </Card>
+        )}
         {activeTab === 'overview' && overview && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>

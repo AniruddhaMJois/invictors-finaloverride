@@ -78,6 +78,10 @@ class WSManager {
     };
   }
 
+  off(type: string, cb: (data: any) => void) {
+    this.listeners.get(type)?.delete(cb);
+  }
+
   sendAuth(token: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'auth', token }));
