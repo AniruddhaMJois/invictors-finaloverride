@@ -522,6 +522,14 @@ export class GameEngine {
     }
 
     if (!foundTeam) {
+      const dbTeam = await db.get('SELECT id FROM teams WHERE LOWER(name) = ?', [cleanTeam]);
+      if (dbTeam && dbTeam.id) {
+        await this.loadTeamFromDb(parseInt(dbTeam.id, 10));
+        foundTeam = this.teams.get(parseInt(dbTeam.id, 10));
+      }
+    }
+
+    if (!foundTeam) {
       throw new Error('Squad not found with this name.');
     }
 

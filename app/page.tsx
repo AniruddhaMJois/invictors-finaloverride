@@ -482,6 +482,7 @@ export default function LandingPage() {
                         value={member1}
                         onChange={(e) => setMember1(e.target.value)}
                         placeholder="Member 1 Full Name"
+                        required
                       />
                     </div>
                     <div>
@@ -490,6 +491,7 @@ export default function LandingPage() {
                         value={member2}
                         onChange={(e) => setMember2(e.target.value)}
                         placeholder="Member 2 Full Name"
+                        required
                       />
                     </div>
                     <div>
@@ -498,6 +500,7 @@ export default function LandingPage() {
                         value={member3}
                         onChange={(e) => setMember3(e.target.value)}
                         placeholder="Member 3 Full Name"
+                        required
                       />
                     </div>
 

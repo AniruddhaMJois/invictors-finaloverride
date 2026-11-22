@@ -64,6 +64,8 @@ interface InputProps {
   className?: string;
   maxLength?: number;
   autoFocus?: boolean;
+  required?: boolean;
+  label?: string;
   style?: React.CSSProperties;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
@@ -77,6 +79,8 @@ export const Input: React.FC<InputProps> = ({
   className = '',
   maxLength,
   autoFocus = false,
+  required = false,
+  label,
   style,
   onKeyDown
 }) => (
@@ -92,6 +96,7 @@ export const Input: React.FC<InputProps> = ({
     className={`input ${className}`}
     maxLength={maxLength}
     autoFocus={autoFocus}
+    required={required}
     style={style}
     onKeyDown={onKeyDown}
   />

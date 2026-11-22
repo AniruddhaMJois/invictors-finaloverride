@@ -228,6 +228,41 @@ export default function GameDashboardPage() {
         setFeedback({ text: `✅ Mission ${state.currentStage} cleared!`, isError: false });
         showToast(`✅ Mission ${state.currentStage} cleared!`, 'ok');
         setAnswerInput('');
+
+        // Direct immediately to next stage subsequently
+        if (data.nextStage) {
+          setViewStage(data.nextStage);
+          teamState.value = {
+            ...state,
+            currentStage: data.nextStage,
+            isCompleted: Boolean(data.isCompleted),
+            verificationCode: data.verificationCode || state.verificationCode,
+            fragments: {
+              ...state.fragments,
+              [state.currentStage]: data.fragment
+            }
+          };
+        } else if (data.isCompleted) {
+          teamState.value = {
+            ...state,
+            isCompleted: true,
+            verificationCode: data.verificationCode || state.verificationCode
+          };
+        }
+
+        // Fetch authoritative server state immediately
+        try {
+          const freshRes = await fetch('/api/state');
+          if (freshRes.ok) {
+            const fresh = await freshRes.json();
+            if (fresh && fresh.id) {
+              teamState.value = fresh;
+              if (fresh.currentStage) {
+                setViewStage(fresh.currentStage);
+              }
+            }
+          }
+        } catch {}
       } else {
         const msg = data.message || `Not quite, try again 🙂 (Attempts: ${data.attempts}, penalty after 5)`;
         setFeedback({

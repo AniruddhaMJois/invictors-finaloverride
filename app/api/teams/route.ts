@@ -30,6 +30,14 @@ export async function POST(request: Request) {
 
     return response;
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+    let msg = err.message || 'Failed to register squad.';
+    if (
+      msg.includes('unique constraint') ||
+      msg.includes('duplicate key') ||
+      msg.includes('teams_name_key')
+    ) {
+      msg = 'Squad name is already taken. Please choose a different name or use Squad Resume.';
+    }
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }

@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const { Pool } = pg;
+// Ensure PostgreSQL 64-bit integers (BIGINT/BIGSERIAL) are parsed as safe JS numbers
+pg.types.setTypeParser(20, (val) => (val === null ? null : parseInt(val, 10)));
 
 export class DatabaseManager {
   constructor() {
@@ -125,7 +127,10 @@ export class DatabaseManager {
   async run(sql, params = []) {
     const pgSql = this.translateSqlToPg(sql);
     const res = await this.pool.query(pgSql, params);
-    const lastID = res.rows && res.rows.length > 0 && res.rows[0].id ? res.rows[0].id : null;
+    const lastID =
+      res.rows && res.rows.length > 0 && res.rows[0].id
+        ? parseInt(res.rows[0].id, 10)
+        : null;
     return { lastID, changes: res.rowCount };
   }
 
