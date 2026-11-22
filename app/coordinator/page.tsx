@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card, Button, Input, Modal } from '@/components/common/UI';
 import { InvictorsLogo } from '@/components/common/Logos';
 import { showToast } from '@/store';
+import { supabaseBrowser } from '@/lib/supabaseClient';
 
 const COORDINATOR_NAMES = [
   'Akul P Yadav',
@@ -67,13 +68,29 @@ export default function CoordinatorPage() {
     return () => window.removeEventListener('fo:ws_message', onCoordUpdate);
   }, []);
 
-  // Periodic Supabase sync poll for Coordinator Portal (every 3s)
+  // Instant Supabase Realtime synchronization for Coordinator Portal
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    const channel = supabaseBrowser
+      .channel(`coord-realtime-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'teams' },
+        () => {
+          loadTeams();
+        }
+      )
+      .subscribe();
+
     const interval = setInterval(() => {
       loadTeams();
     }, 3000);
-    return () => clearInterval(interval);
+
+    return () => {
+      supabaseBrowser.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [isAuthenticated]);
 
   // Lockout countdown timer

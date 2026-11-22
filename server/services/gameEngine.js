@@ -234,8 +234,27 @@ export class GameEngine {
     }
   }
 
+  async refreshGlobalSettings() {
+    const [gameStartedRow, pausedRow, pausedAtRow, pausedAccumRow] = await Promise.all([
+      db.get("SELECT value FROM settings WHERE key = 'game_started'"),
+      db.get("SELECT value FROM settings WHERE key = 'paused'"),
+      db.get("SELECT value FROM settings WHERE key = 'paused_at'"),
+      db.get("SELECT value FROM settings WHERE key = 'paused_accum_ms'")
+    ]);
+
+    if (!isTestRunner()) {
+      this.gameStarted = gameStartedRow ? gameStartedRow.value === '1' : false;
+    }
+    this.globalPaused = pausedRow ? pausedRow.value === '1' : false;
+    this.globalPausedAt = pausedAtRow ? parseInt(pausedAtRow.value, 10) : 0;
+    this.globalPausedAccumMs = pausedAccumRow ? parseInt(pausedAccumRow.value, 10) : 0;
+  }
+
   async loadTeamFromDb(teamId) {
-    const t = await db.get('SELECT * FROM teams WHERE id = ?', [teamId]);
+    const [t] = await Promise.all([
+      db.get('SELECT * FROM teams WHERE id = ?', [teamId]),
+      this.refreshGlobalSettings()
+    ]);
     if (!t) return null;
 
     const [members, progress, hints, violations, noteRow, boundDevices] = await Promise.all([
@@ -1095,11 +1114,12 @@ export class GameEngine {
     await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '1')");
     await supabaseSync.syncSettings('game_started', '1');
 
-    // Start all squads that have not started yet
+    // Update all squads directly in Supabase that have not started yet
+    await db.run('UPDATE teams SET start_time = ? WHERE start_time IS NULL', [now]);
+
     for (const team of this.teams.values()) {
       if (!team.startTime) {
         team.startTime = now;
-        await db.run('UPDATE teams SET start_time = ? WHERE id = ?', [now, team.id]);
         await supabaseSync.syncTeamRegister(team, team.members, null, null);
         this.broadcastTeamState(team.id);
       }
@@ -1115,7 +1135,15 @@ export class GameEngine {
   async resetGameStart(actor = 'Admin') {
     this.gameStarted = false;
     await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '0')");
+    await db.run('UPDATE teams SET start_time = NULL WHERE is_completed = FALSE');
     await supabaseSync.syncSettings('game_started', '0');
+
+    for (const team of this.teams.values()) {
+      if (!team.isCompleted) {
+        team.startTime = null;
+      }
+    }
+
     await this.logAudit(actor, 'reset_game_start', 'Master admin set game back to standby lobby');
     this.broadcastAll({ type: 'game:standby' });
     this.broadcastAdminUpdate();

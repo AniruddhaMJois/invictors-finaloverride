@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Card, Button, Input, Modal, CountdownRing } from '@/components/common/UI';
 import { InvictorsLogo } from '@/components/common/Logos';
 import { showToast } from '@/store';
+import { supabaseBrowser } from '@/lib/supabaseClient';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -73,14 +74,38 @@ export default function AdminPage() {
     return () => window.removeEventListener('fo:ws_message', onAdminUpdate);
   }, []);
 
-  // Periodic Supabase sync poll for Admin Portal (every 3s)
+  // Instant Supabase Realtime synchronization for Admin Portal
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    const channel = supabaseBrowser
+      .channel(`admin-realtime-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'teams' },
+        () => {
+          fetchOverview();
+          fetchTeams();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'alerts' },
+        () => {
+          fetchOverview();
+        }
+      )
+      .subscribe();
+
     const interval = setInterval(() => {
       fetchOverview();
       fetchTeams();
     }, 3000);
-    return () => clearInterval(interval);
+
+    return () => {
+      supabaseBrowser.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [isAuthenticated]);
 
   // Answer key countdown timer

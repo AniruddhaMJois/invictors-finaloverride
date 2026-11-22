@@ -12,9 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Device token missing or expired.' }, { status: 401 });
   }
 
-  if (!gameEngine.teams.has(session.teamId)) {
-    await gameEngine.loadTeamFromDb(session.teamId);
-  }
+  await gameEngine.loadTeamFromDb(session.teamId);
 
   const state = gameEngine.getClientTeamState(session.teamId);
   if (!state) {

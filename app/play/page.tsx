@@ -14,6 +14,7 @@ import {
   submitCooldown,
   showToast
 } from '@/store';
+import { supabaseBrowser } from '@/lib/supabaseClient';
 import { useAuthoritativeTimer } from '@/hooks/useAuthoritativeTimer';
 import { useAntiCheat } from '@/hooks/useAntiCheat';
 import { Stage1Module } from '@/components/stages/Stage1Module';
@@ -52,12 +53,91 @@ export default function GameDashboardPage() {
     setViewStage(currentStageNum);
   }, [currentStageNum]);
 
-  // Periodic Supabase sync poll for Participant Dashboard
-  // In Standby lobby, polls every 2s so admin launch instantly activates Stage 1
-  // In active game, polls every 4s to catch admin pauses/skips/resets
+  // Instant Supabase Realtime Synchronization
+  // Subscribes to settings, teams, progress, and violations to reflect admin controls in milliseconds
+  useEffect(() => {
+    async function syncFreshState() {
+      try {
+        const res = await fetch('/api/state');
+        if (res.ok) {
+          const fresh = await res.json();
+          if (fresh && fresh.id) {
+            teamState.value = fresh;
+            if (fresh.isGlobalPaused !== undefined) {
+              isGlobalPaused.value = fresh.isGlobalPaused;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    const teamId = state?.id;
+    const channelName = `rt-play-${teamId || 'anon'}-${Date.now()}`;
+    const channel = supabaseBrowser.channel(channelName);
+
+    // 1. Listen to global settings (game_started, paused, paused_at, etc.)
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'settings' },
+      (payload) => {
+        const rec = payload.new as any;
+        if (rec) {
+          if (rec.key === 'paused') {
+            isGlobalPaused.value = rec.value === '1';
+          }
+        }
+        syncFreshState();
+      }
+    );
+
+    // 2. Listen to team-specific changes (is_paused, current_stage, start_time, is_completed)
+    if (teamId) {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'teams', filter: `id=eq.${teamId}` },
+        (payload) => {
+          const rec = payload.new as any;
+          if (rec && rec.is_paused !== undefined) {
+            teamState.value = {
+              ...teamState.value!,
+              isPaused: Boolean(rec.is_paused),
+              isTeamPaused: Boolean(rec.is_paused)
+            };
+          }
+          syncFreshState();
+        }
+      );
+
+      // 3. Listen to team violations (penalties waived or applied)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'violations', filter: `team_id=eq.${teamId}` },
+        () => {
+          syncFreshState();
+        }
+      );
+
+      // 4. Listen to team progress (stages skipped or solved)
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'progress', filter: `team_id=eq.${teamId}` },
+        () => {
+          syncFreshState();
+        }
+      );
+    }
+
+    channel.subscribe();
+
+    return () => {
+      supabaseBrowser.removeChannel(channel);
+    };
+  }, [state?.id]);
+
+  // High-frequency fallback poll: 1000ms in standby lobby, 2500ms during live game
   useEffect(() => {
     const isStandby = !state?.gameStarted || !state?.startTime;
-    const intervalMs = isStandby ? 2000 : 4000;
+    const intervalMs = isStandby ? 1000 : 2500;
     const poller = setInterval(async () => {
       try {
         const res = await fetch('/api/state');
@@ -65,6 +145,9 @@ export default function GameDashboardPage() {
           const fresh = await res.json();
           if (fresh && fresh.id) {
             teamState.value = fresh;
+            if (fresh.isGlobalPaused !== undefined) {
+              isGlobalPaused.value = fresh.isGlobalPaused;
+            }
           }
         }
       } catch {}

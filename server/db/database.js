@@ -88,7 +88,13 @@ export class DatabaseManager {
     translated = translated.replace(/text\s*=\s*""/gi, "text = ''");
 
     // Convert integer boolean representations to PostgreSQL BOOLEAN
-    translated = translated.replace(/,\s*is_paused,\s*paused_at,\s*paused_accum_ms\)\s*VALUES\s*\(([^)]+),\s*0,\s*0,\s*0\)/gi, ', is_paused, paused_at, paused_accum_ms) VALUES ($1, FALSE, 0, 0)');
+    translated = translated.replace(/,\s*is_paused,\s*paused_at,\s*paused_accum_ms\)\s*VALUES\s*\((.*)\)/gi, (match, vals) => {
+      const parts = vals.split(',').map((s) => s.trim());
+      if (parts.length >= 3 && parts[parts.length - 3] === '0') {
+        parts[parts.length - 3] = 'FALSE';
+      }
+      return ', is_paused, paused_at, paused_accum_ms) VALUES (' + parts.join(', ') + ')';
+    });
     translated = translated.replace(/,\s*waived\)\s*VALUES\s*\(([^)]+),\s*0\)/gi, ', waived) VALUES ($1, FALSE)');
     translated = translated.replace(/waived\s*=\s*0/gi, 'waived = FALSE');
     translated = translated.replace(/waived\s*=\s*1/gi, 'waived = TRUE');
@@ -98,6 +104,12 @@ export class DatabaseManager {
     translated = translated.replace(/is_completed\s*=\s*1/gi, 'is_completed = TRUE');
     translated = translated.replace(/is_leader\s*=\s*0/gi, 'is_leader = FALSE');
     translated = translated.replace(/is_leader\s*=\s*1/gi, 'is_leader = TRUE');
+
+    // Cast parameter bindings for boolean columns to prevent integer vs boolean mismatch
+    translated = translated.replace(
+      /(is_paused|is_completed|is_leader|waived)\s*=\s*\$([0-9]+)/gi,
+      '$1 = ($2::text = \'1\' OR $2::text = \'true\')'
+    );
 
     // Ensure INSERT returns ID if not present (only for tables with an 'id' column)
     if (
