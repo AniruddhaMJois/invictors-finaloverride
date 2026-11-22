@@ -1,8 +1,9 @@
 -- ============================================================================
--- FINAL OVERRIDE — Supabase PostgreSQL Schema Migration
+-- FINAL OVERRIDE — Supabase PostgreSQL Production Schema
 -- ============================================================================
--- Run this script in your Supabase SQL Editor:
--- https://supabase.com/dashboard/project/_/sql
+-- Safe & idempotent: can be run repeatedly without errors.
+-- Paste this entire script into your Supabase SQL Editor and click "Run".
+-- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -22,6 +23,11 @@ CREATE TABLE IF NOT EXISTS public.teams (
     created_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
 );
 
+-- Ensure pause columns exist if table was previously created
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS is_paused BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS paused_at BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE public.teams ADD COLUMN IF NOT EXISTS paused_accum_ms BIGINT NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_teams_coordinator ON public.teams(coordinator);
 CREATE INDEX IF NOT EXISTS idx_teams_current_stage ON public.teams(current_stage);
 
@@ -35,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.members (
 
 CREATE INDEX IF NOT EXISTS idx_members_team_id ON public.members(team_id);
 
--- 3. DEVICES TABLE
+-- 3. DEVICES TABLE (Bound sessions)
 CREATE TABLE IF NOT EXISTS public.devices (
     token TEXT PRIMARY KEY,
     team_id BIGINT NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
@@ -95,14 +101,14 @@ CREATE TABLE IF NOT EXISTS public.submissions (
 
 CREATE INDEX IF NOT EXISTS idx_submissions_team ON public.submissions(team_id, stage);
 
--- 8. NOTES TABLE
+-- 8. NOTES TABLE (Shared squad scratchpad)
 CREATE TABLE IF NOT EXISTS public.notes (
     team_id BIGINT PRIMARY KEY REFERENCES public.teams(id) ON DELETE CASCADE,
     text TEXT NOT NULL DEFAULT '',
     updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
 );
 
--- 9. SETTINGS TABLE
+-- 9. SETTINGS TABLE (Global game state)
 CREATE TABLE IF NOT EXISTS public.settings (
     key VARCHAR(64) PRIMARY KEY,
     value TEXT NOT NULL
@@ -116,7 +122,7 @@ CREATE TABLE IF NOT EXISTS public.hints (
     PRIMARY KEY (stage, n)
 );
 
--- 11. STAGE DATA REPOSITORY TABLE
+-- 11. STAGE DATA TABLE (Dynamic state per stage)
 CREATE TABLE IF NOT EXISTS public.stage_data (
     team_id BIGINT NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
     stage INT NOT NULL,
@@ -136,7 +142,10 @@ CREATE TABLE IF NOT EXISTS public.audit (
 
 CREATE INDEX IF NOT EXISTS idx_audit_at ON public.audit(at DESC);
 
--- Default Settings Initialization
+-- ============================================================================
+-- DEFAULT SEED DATA
+-- ============================================================================
+
 INSERT INTO public.settings (key, value) VALUES
     ('paused', '0'),
     ('paused_at', '0'),
@@ -144,24 +153,50 @@ INSERT INTO public.settings (key, value) VALUES
     ('game_started', '0')
 ON CONFLICT (key) DO NOTHING;
 
--- Initial Hints Seed
+-- Initial Hints Seed using Dollar-Quoting ($$...$$) to prevent escaping errors
 INSERT INTO public.hints (stage, n, text) VALUES
-    (1, 1, 'Reveals 15-character international Morse code chart: A(•—), B(—•••), C(—•—•), D(—••), E(•), F(••—•), G(——•), H(••••), I(••), J(•———), K(—•—), N(—•), O(———), V(•••—), Z(——••).'),
-    (1, 2, 'Combining the 4 sectors yields the 4-letter cosmic word NOVA.'),
-    (2, 1, 'Structural markers: Base64 has ''=='' padding; Hex has byte pairs; ROT13 has English frequency distribution.'),
-    (2, 2, 'Sequential order: Base64 Decode -> Hex Decode -> ROT13 Shift. Record both the key fragment (7K2) and the secret access phrase (AURORA).'),
-    (3, 1, 'WARDEN requires the access phrase AURORA from Stage 2.'),
-    (3, 2, 'Write a professional statement of 10 or more words that says who you are and asks for the fragment.'),
-    (4, 1, 'Each station hides ONE character. Find all three and join them in order (Station 1 + 2 + 3).'),
-    (4, 2, 'Station 1=9, Station 2=1, Station 3=X. Fragment is 91X.'),
-    (5, 1, 'Convert each 2-character hex pair to ASCII characters (e.g. 48=H, 45=E, 58=X).'),
-    (5, 2, 'Decoupled registers reveal the 6-character fragment HEX82D.'),
-    (6, 1, 'Assemble the 5 collected fragments in order: Stage 4 (91X), Stage 2 (7K2), Stage 5 (HEX82D), Stage 3 reversed (TIBRO), Stage 1 (NOVA).'),
-    (6, 2, 'Checksum formula: Sum ASCII values of the 5 segments modulo 97 = 29. Full key: FO{91X-7K2-HEX82D-TIBRO-NOVA}#29')
-ON CONFLICT (stage, n) DO NOTHING;
+    (1, 1, $$Reveals 15-character international Morse code chart: A(•—), B(—•••), C(—•—•), D(—••), E(•), F(••—•), G(——•), H(••••), I(••), J(•———), K(—•—), N(—•), O(———), V(•••—), Z(——••).$$),
+    (1, 2, $$Combining the 4 sectors yields the 4-letter cosmic word NOVA.$$),
+    (2, 1, $$Structural markers: Base64 has '==' padding; Hex has byte pairs; ROT13 has English frequency distribution.$$),
+    (2, 2, $$Sequential order: Base64 Decode -> Hex Decode -> ROT13 Shift. Record both the key fragment (7K2) and the secret access phrase (AURORA).$$),
+    (3, 1, $$WARDEN requires the access phrase AURORA from Stage 2.$$),
+    (3, 2, $$Write a professional statement of 10 or more words that says who you are and asks for the fragment.$$),
+    (4, 1, $$Each station hides ONE character. Find all three and join them in order (Station 1 + 2 + 3).$$),
+    (4, 2, $$Station 1=9, Station 2=1, Station 3=X. Fragment is 91X.$$),
+    (5, 1, $$Convert each 2-character hex pair to ASCII characters (e.g. 48=H, 45=E, 58=X).$$),
+    (5, 2, $$Decoupled registers reveal the 6-character fragment HEX82D.$$),
+    (6, 1, $$Assemble the 5 collected fragments in order: Stage 4 (91X), Stage 2 (7K2), Stage 5 (HEX82D), Stage 3 reversed (TIBRO), Stage 1 (NOVA).$$),
+    (6, 2, $$Checksum formula: Sum ASCII values of the 5 segments modulo 97 = 29. Full key: FO{91X-7K2-HEX82D-TIBRO-NOVA}#29$$)
+ON CONFLICT (stage, n) DO UPDATE SET text = EXCLUDED.text;
 
--- Enable Realtime on critical broadcast tables
-ALTER PUBLICATION supabase_realtime ADD TABLE public.teams;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notes;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.audit;
+-- ============================================================================
+-- ROLES & PERMISSIONS
+-- ============================================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- ============================================================================
+-- REALTIME PUBLICATION (Safely wrapped so it never throws duplicate errors)
+-- ============================================================================
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.teams;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.notes;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.audit;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
+END $$;
