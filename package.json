@@ -5,15 +5,27 @@
   "type": "module",
   "description": "FINAL OVERRIDE — 6-Stage Cybersecurity Escape Room Web App",
   "scripts": {
-    "postinstall": "npm --prefix client install && npm --prefix server install",
-    "build": "npm --prefix client run build",
-    "start": "node server/server.js",
-    "test": "node --test tests/acceptance.test.mjs tests/admin.test.mjs tests/stage1.test.mjs tests/stage2.test.mjs tests/stage3.test.mjs tests/stage4.test.mjs tests/stage5.test.mjs tests/stage6.test.mjs"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "node server.js",
+    "test": "node --test --test-concurrency=1 tests/acceptance.test.mjs tests/admin.test.mjs tests/stage1.test.mjs tests/stage2.test.mjs tests/stage3.test.mjs tests/stage4.test.mjs tests/stage5.test.mjs tests/stage6.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",
+    "cookie": "^1.1.1",
     "dotenv": "^18.0.10",
+    "next": "^16.4.6",
     "pg": "^8.23.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sqlite3": "^6.0.1",
     "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "typescript": "^7.0.2"
   }
 }

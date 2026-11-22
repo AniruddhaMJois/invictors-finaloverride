@@ -7,11 +7,19 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 const DEFAULT_COORDINATORS = [
-  { id: 'arun', name: 'Arun', pin: 'ARUN#234' },
-  { id: 'divya', name: 'Divya', pin: 'DIVYA#567' },
-  { id: 'kiran', name: 'Kiran', pin: 'KIRAN#890' },
-  { id: 'pooja', name: 'Pooja', pin: 'POOJA#123' },
-  { id: 'rakshith', name: 'Rakshith', pin: 'RAKSHITH#456' }
+  { id: 'akul', name: 'Akul P Yadav', pin: 'AKUL#101' },
+  { id: 'gagan', name: 'Gagan S Urs', pin: 'GAGAN#202' },
+  { id: 'punya', name: 'M Punya Sagar', pin: 'PUNYA#303' },
+  { id: 'shashank', name: 'MN Shashank', pin: 'SHASHANK#404' },
+  { id: 'dhanush', name: 'Dhanush KP', pin: 'DHANUSH#505' },
+  { id: 'anirudh', name: 'Anirudh m', pin: 'ANIRUDH#606' },
+  { id: 'anish', name: 'Anish S Kumar', pin: 'ANISH#707' },
+  { id: 'ayush', name: 'Ayush P', pin: 'AYUSH#808' },
+  { id: 'skanda', name: 'Skanda', pin: 'SKANDA#909' },
+  { id: 'vishnu', name: 'Vishnuvardhan', pin: 'VISHNU#111' },
+  { id: 'vandhana', name: 'Vandhana V', pin: 'VANDHANA#222' },
+  { id: 'abhiram', name: 'Abhiram BS', pin: 'ABHIRAM#333' },
+  { id: 'harshil', name: 'Harshil', pin: 'HARSHIL#444' }
 ];
 
 let parsedCoordinators = DEFAULT_COORDINATORS;

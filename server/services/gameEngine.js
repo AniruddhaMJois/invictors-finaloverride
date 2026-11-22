@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { db } from '../db/database.js';
+import { supabaseSync } from '../db/supabaseSync.js';
 import { CONFIG, STAGE_ANSWERS, STAGE_HINTS } from '../config/index.js';
 import { getTeamVariant } from '../../shared/ciphers.js';
 import { evaluateWardenPrompt } from './wardenEngine.js';
@@ -165,6 +166,89 @@ export class GameEngine {
         verificationCode
       });
     }
+
+    // If local database has no teams and Supabase is configured, hydrate from Supabase Cloud
+    if (this.teams.size === 0 && supabaseSync.isConfigured()) {
+      const cloud = await supabaseSync.loadAll();
+      if (cloud && cloud.teams.length > 0) {
+        console.log(`☁️ SupabaseSync: Hydrated ${cloud.teams.length} squads from Supabase Cloud.`);
+        for (const t of cloud.teams) {
+          const members = cloud.members.filter((m) => m.team_id === t.id);
+          const progress = cloud.progress.filter((p) => p.team_id === t.id);
+          const hints = cloud.hintUnlocks.filter((h) => h.team_id === t.id);
+          const violations = cloud.violations.filter((v) => v.team_id === t.id && !v.waived);
+          const noteRow = cloud.notes.find((n) => n.team_id === t.id);
+          const boundDevices = cloud.devices.filter((d) => d.team_id === t.id);
+
+          const fragments = {};
+          let wrongAttemptsCurrent = 0;
+          let totalWrongAttemptPenalties = 0;
+
+          for (const p of progress) {
+            fragments[p.stage] = p.fragment;
+            if (p.stage === t.current_stage) {
+              wrongAttemptsCurrent = p.wrong_attempts;
+            }
+            if (p.wrong_attempts > 5) {
+              totalWrongAttemptPenalties += (p.wrong_attempts - 5) * 60;
+            }
+          }
+
+          let totalHintPenalties = 0;
+          const hintsUsed = {};
+          for (const h of hints) {
+            if (!hintsUsed[h.stage]) hintsUsed[h.stage] = {};
+            hintsUsed[h.stage][h.n] = {
+              unlockedAt: parseInt(h.unlocked_at, 10),
+              expiresAt: parseInt(h.expires_at, 10),
+              penaltySeconds: h.penalty_seconds,
+              text: null
+            };
+            totalHintPenalties += h.penalty_seconds;
+          }
+
+          let totalTabPenalties = 0;
+          for (const v of violations) {
+            totalTabPenalties += v.penalty_seconds || 120;
+          }
+
+          const totalPenalties = totalHintPenalties + totalTabPenalties + totalWrongAttemptPenalties;
+
+          let verificationCode = null;
+          if (t.is_completed) {
+            const raw = `${t.id}:${t.name}:${t.start_time}:${t.end_time}:${totalPenalties}:${CONFIG.SALT}`;
+            verificationCode = crypto.createHash('sha256').update(raw).digest('hex').substring(0, 12).toUpperCase();
+          }
+
+          this.teams.set(t.id, {
+            id: t.id,
+            teamName: t.name,
+            coordinator: t.coordinator,
+            teamPin: t.team_pin,
+            members: members.map((m) => ({ id: m.id, name: m.name, isLeader: m.is_leader })),
+            currentStage: t.current_stage,
+            isCompleted: Boolean(t.is_completed),
+            startTime: t.start_time,
+            endTime: t.end_time,
+            isPaused: Boolean(t.is_paused),
+            pausedAt: t.paused_at ? parseInt(t.paused_at, 10) : 0,
+            pausedAccumMs: t.paused_accum_ms ? parseInt(t.paused_accum_ms, 10) : 0,
+            totalPenaltySeconds: totalPenalties,
+            penaltyBreakdown: {
+              hints: totalHintPenalties,
+              tabSwitches: totalTabPenalties,
+              wrongAttempts: totalWrongAttemptPenalties
+            },
+            wrongAttemptsCurrentStage: wrongAttemptsCurrent,
+            fragments,
+            hintsUsed,
+            notepadText: noteRow ? noteRow.text : '',
+            boundDevicesCount: boundDevices.length,
+            verificationCode
+          });
+        }
+      }
+    }
   }
 
   generateDeviceToken(teamId, memberId) {
@@ -204,8 +288,18 @@ export class GameEngine {
       }
     }
 
-    const validCoordinators = ['Arun', 'Divya', 'Kiran', 'Pooja', 'Rakshith'];
-    if (!coordinator || !validCoordinators.includes(coordinator)) {
+    const isCoordValid = (c) => {
+      if (!c || typeof c !== 'string') return false;
+      const lower = c.trim().toLowerCase();
+      const match = (CONFIG.COORDINATORS || []).some(
+        (item) => item.name.toLowerCase() === lower
+      );
+      if (match) return true;
+      const testFallbacks = ['arun', 'divya', 'kiran', 'pooja', 'rakshith'];
+      return testFallbacks.includes(lower);
+    };
+
+    if (!isCoordValid(coordinator)) {
       throw new Error('Please select a valid event coordinator.');
     }
 
@@ -254,6 +348,21 @@ export class GameEngine {
     this.tokens.set(leaderToken, { teamId, memberId: insertedMembers[0].id });
 
     await db.run('INSERT INTO notes (team_id, text) VALUES (?, ?)', [teamId, '']);
+
+    await supabaseSync.syncTeamRegister(
+      {
+        id: teamId,
+        teamName: cleanTeamName,
+        coordinator,
+        teamPin,
+        currentStage: 1,
+        startTime: teamStartTime,
+        createdAt: now
+      },
+      insertedMembers,
+      leaderToken,
+      insertedMembers[0].id
+    );
 
     const teamState = {
       id: teamId,
@@ -416,6 +525,18 @@ export class GameEngine {
         await db.run('UPDATE teams SET current_stage = ? WHERE id = ?', [team.currentStage, teamId]);
       }
 
+      await supabaseSync.syncSubmitAnswer(
+        teamId,
+        stage,
+        fragment,
+        team.isCompleted,
+        team.endTime,
+        rawAnswer,
+        true,
+        team.wrongAttemptsCurrentStage,
+        team.currentStage
+      );
+
       this.broadcastTeamState(teamId);
       this.broadcastLeaderboard();
       this.broadcastAdminUpdate();
@@ -435,6 +556,18 @@ export class GameEngine {
          VALUES (?, ?, '', ?, ?)
          ON CONFLICT(team_id, stage) DO UPDATE SET wrong_attempts = ?`,
         [teamId, stage, now, team.wrongAttemptsCurrentStage, team.wrongAttemptsCurrentStage]
+      );
+
+      await supabaseSync.syncSubmitAnswer(
+        teamId,
+        stage,
+        '',
+        false,
+        null,
+        rawAnswer,
+        false,
+        team.wrongAttemptsCurrentStage,
+        team.currentStage
       );
 
       if (team.wrongAttemptsCurrentStage > 5) {
@@ -524,6 +657,8 @@ export class GameEngine {
       [teamId, stage, hintNumber, now, expiresAt, penaltySeconds]
     );
 
+    await supabaseSync.syncUnlockHint(teamId, stage, hintNumber, now, expiresAt, penaltySeconds);
+
     team.hintsUsed[stage][hintNumber] = {
       unlockedAt: now,
       expiresAt,
@@ -575,6 +710,8 @@ export class GameEngine {
       now
     ]);
 
+    await supabaseSync.syncViolation(teamId, now, 120);
+
     team.penaltyBreakdown.tabSwitches += 120;
     team.totalPenaltySeconds += 120;
 
@@ -596,6 +733,8 @@ export class GameEngine {
       Date.now()
     ]);
 
+    await supabaseSync.syncNotes(teamId, team.notepadText);
+
     this.broadcastTeamState(teamId);
   }
 
@@ -612,6 +751,8 @@ export class GameEngine {
       'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, ?, ?, ?)',
       [teamId, stage, 'pad', JSON.stringify(pad)]
     );
+
+    await supabaseSync.syncStageData(teamId, stage, 'pad', pad);
 
     this.broadcastToTeam(teamId, {
       type: 'stage:pad',
@@ -633,6 +774,8 @@ export class GameEngine {
       'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, ?, ?, ?)',
       [teamId, stage, 'workbench', JSON.stringify(workbench)]
     );
+
+    await supabaseSync.syncStageData(teamId, stage, 'workbench', workbench);
 
     this.broadcastToTeam(teamId, {
       type: 'stage2:workbench',
@@ -702,6 +845,8 @@ export class GameEngine {
       'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, 3, ?, ?)',
       [teamId, 'chat_history', JSON.stringify(chat)]
     );
+
+    await supabaseSync.syncStageData(teamId, 3, 'chat_history', chat);
 
     // Log chat interaction to audit table
     await db.run(
@@ -775,6 +920,8 @@ export class GameEngine {
         [teamId, 'stations_solved', JSON.stringify(solvedArr)]
       );
 
+      await supabaseSync.syncStageData(teamId, 4, 'stations_solved', solvedArr);
+
       this.broadcastToTeam(teamId, {
         type: 'stage4:station_solved',
         station: n,
@@ -823,6 +970,8 @@ export class GameEngine {
       this.globalPausedAt = now;
       await db.run("UPDATE settings SET value = '1' WHERE key = 'paused'");
       await db.run('UPDATE settings SET value = ? WHERE key = \'paused_at\'', [now.toString()]);
+      await supabaseSync.syncSettings('paused', '1');
+      await supabaseSync.syncSettings('paused_at', now.toString());
     } else if (!pauseState && this.globalPaused) {
       this.globalPaused = false;
       const pauseDuration = now - this.globalPausedAt;
@@ -831,6 +980,8 @@ export class GameEngine {
       await db.run('UPDATE settings SET value = ? WHERE key = \'paused_accum_ms\'', [
         this.globalPausedAccumMs.toString()
       ]);
+      await supabaseSync.syncSettings('paused', '0');
+      await supabaseSync.syncSettings('paused_accum_ms', this.globalPausedAccumMs.toString());
     }
 
     this.broadcastAll({
@@ -845,12 +996,14 @@ export class GameEngine {
     this.gameStarted = true;
     const now = Date.now();
     await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '1')");
+    await supabaseSync.syncSettings('game_started', '1');
 
     // Start all squads that have not started yet
     for (const team of this.teams.values()) {
       if (!team.startTime) {
         team.startTime = now;
         await db.run('UPDATE teams SET start_time = ? WHERE id = ?', [now, team.id]);
+        await supabaseSync.syncTeamRegister(team, team.members, null, null);
         this.broadcastTeamState(team.id);
       }
     }
@@ -865,6 +1018,7 @@ export class GameEngine {
   async resetGameStart(actor = 'Admin') {
     this.gameStarted = false;
     await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('game_started', '0')");
+    await supabaseSync.syncSettings('game_started', '0');
     await this.logAudit(actor, 'reset_game_start', 'Master admin set game back to standby lobby');
     this.broadcastAll({ type: 'game:standby' });
     this.broadcastAdminUpdate();
@@ -883,6 +1037,7 @@ export class GameEngine {
       team.isPaused = true;
       team.pausedAt = now;
       await db.run('UPDATE teams SET is_paused = 1, paused_at = ? WHERE id = ?', [now, teamId]);
+      await supabaseSync.syncTeamPause(teamId, true, now, team.pausedAccumMs);
       await this.logAudit(actor, 'team_pause', { teamId, teamName: team.teamName });
     } else if (!shouldPause && team.isPaused) {
       team.isPaused = false;
@@ -893,6 +1048,7 @@ export class GameEngine {
         team.pausedAccumMs,
         teamId
       ]);
+      await supabaseSync.syncTeamPause(teamId, false, 0, team.pausedAccumMs);
       await this.logAudit(actor, 'team_resume', { teamId, teamName: team.teamName, durationMs: duration });
     }
 
@@ -1091,6 +1247,7 @@ export class GameEngine {
       action,
       typeof detail === 'string' ? detail : JSON.stringify(detail)
     ]);
+    await supabaseSync.syncAudit(now, actor, action, detail);
   }
 
   getHints() {
@@ -1107,6 +1264,7 @@ export class GameEngine {
     this.hints[stg][num] = cleanText;
 
     await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [stg, num, cleanText]);
+    await supabaseSync.syncHintUpdate(stg, num, cleanText);
     await this.logAudit(actor, 'edit_hint', { stage: stg, n: num, textLength: cleanText.length });
 
     // Update active teams playing this stage
@@ -1380,6 +1538,7 @@ export class GameEngine {
 
     const penaltyToWaive = v.penalty_seconds || 120;
     await db.run('UPDATE violations SET waived = 1 WHERE id = ?', [vId]);
+    await supabaseSync.syncWaivePenalty(vId);
 
     team.penaltyBreakdown.tabSwitches = Math.max(0, team.penaltyBreakdown.tabSwitches - penaltyToWaive);
     team.totalPenaltySeconds = Math.max(0, team.totalPenaltySeconds - penaltyToWaive);
@@ -1398,6 +1557,7 @@ export class GameEngine {
     if (!d) throw new Error('Device binding not found.');
 
     await db.run('DELETE FROM devices WHERE token = ?', [token]);
+    await supabaseSync.syncUnbindDevice(token);
     this.tokens.delete(token);
 
     const team = this.teams.get(d.team_id);
@@ -1439,6 +1599,18 @@ export class GameEngine {
       await db.run('UPDATE teams SET current_stage = ? WHERE id = ?', [team.currentStage, teamId]);
     }
 
+    await supabaseSync.syncSubmitAnswer(
+      teamId,
+      current,
+      fragment,
+      team.isCompleted,
+      team.endTime,
+      fragment,
+      true,
+      0,
+      team.currentStage
+    );
+
     await this.logAudit(actor, 'skip_stage', { teamId, fromStage: current, toStage: team.currentStage });
     this.broadcastTeamState(teamId);
     this.broadcastLeaderboard();
@@ -1467,6 +1639,8 @@ export class GameEngine {
       'UPDATE teams SET current_stage = 1, is_completed = 0, start_time = ?, end_time = NULL WHERE id = ?',
       [now, teamId]
     );
+
+    await supabaseSync.syncTeamRestart(teamId, now);
 
     team.currentStage = 1;
     team.isCompleted = false;
@@ -1598,6 +1772,34 @@ export class GameEngine {
     }
 
     return '\uFEFF' + rows.map((r) => r.join(',')).join('\r\n');
+  }
+
+  async wipeAllTeams(actor = 'Master Admin') {
+    await db.run('DELETE FROM devices');
+    await db.run('DELETE FROM members');
+    await db.run('DELETE FROM progress');
+    await db.run('DELETE FROM hint_unlocks');
+    await db.run('DELETE FROM violations');
+    await db.run('DELETE FROM submissions');
+    await db.run('DELETE FROM stage_data');
+    await db.run('DELETE FROM notes');
+    await db.run('DELETE FROM teams');
+
+    if (supabaseSync.isConfigured()) {
+      await supabaseSync.wipeAllTeams();
+    }
+
+    this.teams.clear();
+    this.tokens.clear();
+    this.stagePads.clear();
+    this.stageWorkbenches.clear();
+    this.stageChats.clear();
+    this.stage4Stations.clear();
+
+    await this.logAudit(actor, 'WIPE_ALL_TEAMS', 'All squads completely deleted from database and memory');
+    this.broadcastLeaderboard();
+    this.broadcastAdminUpdate();
+    return { success: true };
   }
 }
 

@@ -5,6 +5,8 @@ server/node_modules/
 
 # Production build
 client/dist/
+.next/
+out/
 
 # SQLite databases
 server/db/*.db
@@ -13,8 +15,8 @@ server/db/*.db-shm
 
 # Environment variables
 .env
-.env.local
-.env.*.local
+.env*
+!.env.example
 
 # Logs
 npm-debug.log*
