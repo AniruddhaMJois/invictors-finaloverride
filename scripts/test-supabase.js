@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+import ws from 'ws';
 import { createClient } from '@supabase/supabase-js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -28,16 +29,19 @@ async function testSupabase() {
   if (supabaseUrl && supabaseKey) {
     console.log('\n2. Testing Supabase REST Client (@supabase/supabase-js)...');
     try {
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      const supabase = createClient(supabaseUrl, supabaseKey, {
+        auth: { persistSession: false },
+        realtime: { transport: ws }
+      });
       const { data, error } = await supabase.from('settings').select('*').limit(5);
 
       if (error) {
-        if (error.code === 'PGRST204' || error.message?.includes('does not exist')) {
+        if (error.code === 'PGRST204' || error.message?.includes('does not exist') || error.code === '42P01') {
           console.log('   ⚠️ Supabase connected, but "settings" table is missing.');
           console.log('   👉 Please execute "supabase/schema.sql" in your Supabase SQL Editor:');
           console.log(`      ${supabaseUrl.replace('.supabase.co', '')}/sql (or Dashboard -> SQL Editor)`);
         } else {
-          console.log('   ❌ Supabase query error:', error.message);
+          console.log('   ❌ Supabase query error:', error.message, error);
         }
       } else {
         console.log(`   ✅ Supabase connected successfully! Found ${data?.length || 0} settings entries:`, data);
