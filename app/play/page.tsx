@@ -48,10 +48,33 @@ export default function GameDashboardPage() {
   // Selected Stage for Viewing (defaults to current)
   const currentStageNum = state?.currentStage || 1;
   const [viewStage, setViewStage] = useState(currentStageNum);
+  const [waitlistData, setWaitlistData] = useState<any[]>([]);
 
   useEffect(() => {
     setViewStage(currentStageNum);
+    setFeedback(null);
+    setAnswerInput('');
   }, [currentStageNum]);
+
+  // Synchronize waitlist queue when waiting in pre-game lobby
+  useEffect(() => {
+    if (state?.gameStarted === false || !state?.startTime) {
+      const fetchWaitlist = async () => {
+        try {
+          const res = await fetch('/api/waitlist');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.waitlist)) {
+              setWaitlistData(data.waitlist);
+            }
+          }
+        } catch {}
+      };
+      fetchWaitlist();
+      const interval = setInterval(fetchWaitlist, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [state?.gameStarted, state?.startTime]);
 
   // Reset input and clear any stale feedback whenever viewing a different stage
   useEffect(() => {
@@ -448,6 +471,96 @@ export default function GameDashboardPage() {
               </div>
               <div className="poster-meta-pod gold" style={{ padding: '8px 14px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 800 }}>📍 VENUE: M Block 401</span>
+              </div>
+            </div>
+
+            {/* Allocated Squad Identity Badge */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, rgba(255, 184, 31, 0.12), rgba(0, 240, 255, 0.12))',
+                border: '1.5px solid var(--gold)',
+                borderRadius: 'var(--r-sm)',
+                padding: '14px 18px',
+                marginBottom: '20px',
+                display: 'flex',
+                justifyContent: 'space-around',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '1px' }}>Assigned Squad</span>
+                <span style={{ fontSize: '20px', fontWeight: 900, color: 'var(--gold)', fontFamily: 'var(--font-hud)' }}>
+                  TEAM #{state.teamNumber || '1'}
+                </span>
+              </div>
+              <div style={{ height: '36px', width: '1px', background: 'var(--line)' }} />
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '1px' }}>Assigned Question Set</span>
+                <span style={{ fontSize: '20px', fontWeight: 900, color: 'var(--cyan)', fontFamily: 'var(--font-hud)' }}>
+                  SET {state.setId || 'A'}
+                </span>
+              </div>
+            </div>
+
+            {/* Live Synchronized Waitlist Table */}
+            <div
+              style={{
+                background: 'rgba(5, 14, 31, 0.95)',
+                border: '1px solid var(--line-bright)',
+                borderRadius: 'var(--r-sm)',
+                padding: '16px',
+                textAlign: 'left',
+                marginBottom: '20px',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.6)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span style={{ fontFamily: 'var(--font-hud)', fontSize: '13px', fontWeight: 800, color: 'var(--cyan)' }}>
+                  📋 REGISTERED SQUADS WAITLIST QUEUE ({waitlistData.length})
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--ok)', fontWeight: 700 }}>
+                  ● LIVE SYNCED
+                </span>
+              </div>
+              <div style={{ overflowX: 'auto', maxHeight: '220px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontFamily: 'var(--font-hud)' }}>
+                      <th style={{ padding: '6px 8px' }}>Queue #</th>
+                      <th style={{ padding: '6px 8px' }}>Team #</th>
+                      <th style={{ padding: '6px 8px' }}>Squad Name</th>
+                      <th style={{ padding: '6px 8px' }}>Set</th>
+                      <th style={{ padding: '6px 8px' }}>Coordinator</th>
+                      <th style={{ padding: '6px 8px' }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {waitlistData.map((w, idx) => {
+                      const isCurrent = w.id === state.id || w.teamName === state.teamName;
+                      return (
+                        <tr
+                          key={w.id || idx}
+                          style={{
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                            background: isCurrent ? 'rgba(0, 240, 255, 0.12)' : 'transparent',
+                            fontWeight: isCurrent ? 800 : 500
+                          }}
+                        >
+                          <td style={{ padding: '6px 8px', color: 'var(--muted)' }}>#{w.queueOrder || idx + 1}</td>
+                          <td style={{ padding: '6px 8px', color: 'var(--gold)', fontWeight: 700 }}>Team {w.teamNumber}</td>
+                          <td style={{ padding: '6px 8px', color: isCurrent ? 'var(--cyan)' : '#ffffff' }}>
+                            {w.teamName} {isCurrent && <span style={{ color: 'var(--gold)', fontSize: '10px' }}>★ (YOU)</span>}
+                          </td>
+                          <td style={{ padding: '6px 8px' }}>
+                            <span className="badge badge-blue" style={{ fontSize: '10px', padding: '2px 6px' }}>Set {w.setId}</span>
+                          </td>
+                          <td style={{ padding: '6px 8px', color: 'var(--muted)' }}>{w.coordinator}</td>
+                          <td style={{ padding: '6px 8px', color: 'var(--ok)' }}>🟢 Standby</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
 

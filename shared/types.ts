@@ -116,6 +116,7 @@ export interface TeamState {
   boundDevicesCount: number;
   verificationCode?: string;
   setId?: string;
+  teamNumber?: number;
 }
 
 export interface LeaderboardEntry {

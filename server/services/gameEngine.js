@@ -230,7 +230,8 @@ export class GameEngine {
         notepadText: noteText,
         boundDevicesCount: boundDevices.length,
         verificationCode,
-        setId: t.set_id || 'A'
+        setId: t.set_id || 'A',
+        teamNumber: t.team_number ? parseInt(t.team_number, 10) : null
       };
 
       this.teams.set(t.id, teamObj);
@@ -344,7 +345,8 @@ export class GameEngine {
       notepadText: noteRow ? noteRow.text : '',
       boundDevicesCount: boundDevices.length,
       verificationCode,
-      setId: t.set_id || 'A'
+      setId: t.set_id || 'A',
+      teamNumber: t.team_number ? parseInt(t.team_number, 10) : null
     };
 
     this.teams.set(t.id, teamObj);
@@ -456,7 +458,9 @@ export class GameEngine {
     const teamStartTime = (this.gameStarted || isTestRunner()) ? now : null;
 
     let assignedSetId = 'A';
+    let assignedTeamNumber = null;
     if (isDemo) {
+      assignedTeamNumber = 99;
       assignedSetId = 'E';
     } else {
       try {
@@ -499,23 +503,36 @@ export class GameEngine {
           });
         }
 
-        if (matchedAllotment && matchedAllotment.set_id) {
-          assignedSetId = matchedAllotment.set_id;
-        } else if (extractedTeamNum) {
-          // Guaranteed fallback: 1-6 -> Set A, 7-12 -> Set B, 13-18 -> Set C, 19-23 -> Set D
-          if (extractedTeamNum >= 1 && extractedTeamNum <= 6) assignedSetId = 'A';
-          else if (extractedTeamNum >= 7 && extractedTeamNum <= 12) assignedSetId = 'B';
-          else if (extractedTeamNum >= 13 && extractedTeamNum <= 18) assignedSetId = 'C';
-          else if (extractedTeamNum >= 19 && extractedTeamNum <= 23) assignedSetId = 'D';
+        if (matchedAllotment && matchedAllotment.team_number) {
+          assignedTeamNumber = parseInt(matchedAllotment.team_number, 10);
+          assignedSetId = matchedAllotment.set_id || 'A';
+        } else {
+          // Sequential chronological assignment based on registration timestamp
+          const countRow = await db.get(
+            "SELECT COUNT(*) as count FROM teams WHERE LOWER(name) NOT LIKE '%demo%' AND LOWER(name) NOT LIKE 'dem%'"
+          );
+          const nextSeq = (countRow && countRow.count ? parseInt(countRow.count, 10) : 0) + 1;
+          assignedTeamNumber = nextSeq;
+
+          if (assignedTeamNumber >= 1 && assignedTeamNumber <= 6) assignedSetId = 'A';
+          else if (assignedTeamNumber >= 7 && assignedTeamNumber <= 12) assignedSetId = 'B';
+          else if (assignedTeamNumber >= 13 && assignedTeamNumber <= 18) assignedSetId = 'C';
+          else if (assignedTeamNumber >= 19 && assignedTeamNumber <= 23) assignedSetId = 'D';
+          else {
+            const cycle = ['A', 'B', 'C', 'D'];
+            assignedSetId = cycle[(assignedTeamNumber - 1) % 4];
+          }
         }
       } catch (e) {
         console.warn('Could not query team_allotments:', e.message);
+        assignedTeamNumber = (this.teams.size || 0) + 1;
+        assignedSetId = 'A';
       }
     }
 
     const teamInsert = await db.run(
-      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms, set_id) VALUES (?, ?, ?, 1, ?, ?, FALSE, 0, 0, ?)',
-      [cleanTeamName, coordinator, teamPin, teamStartTime, now, assignedSetId]
+      'INSERT INTO teams (name, coordinator, team_pin, current_stage, start_time, created_at, is_paused, paused_at, paused_accum_ms, set_id, team_number) VALUES (?, ?, ?, 1, ?, ?, FALSE, 0, 0, ?, ?)',
+      [cleanTeamName, coordinator, teamPin, teamStartTime, now, assignedSetId, assignedTeamNumber]
     );
     const teamId = teamInsert.lastID;
 
@@ -581,7 +598,8 @@ export class GameEngine {
       hintsUsed: {},
       notepadText: '',
       boundDevicesCount: 1,
-      setId: assignedSetId
+      setId: assignedSetId,
+      teamNumber: assignedTeamNumber
     };
 
     this.teams.set(teamId, teamState);
@@ -1399,7 +1417,8 @@ export class GameEngine {
       notepadText: team.notepadText,
       boundDevicesCount: team.boundDevicesCount,
       verificationCode: team.verificationCode,
-      setId: team.setId || 'A'
+      setId: team.setId || 'A',
+      teamNumber: team.teamNumber || null
     };
   }
 
@@ -1437,6 +1456,41 @@ export class GameEngine {
     });
 
     return entries.map((e, idx) => ({ ...e, rank: idx + 1 }));
+  }
+
+  async getWaitlist() {
+    try {
+      const rows = await db.all(
+        'SELECT id, name as "teamName", coordinator, team_number as "teamNumber", set_id as "setId", created_at as "createdAt", current_stage as "currentStage", is_completed as "isCompleted" FROM public.teams ORDER BY created_at ASC'
+      );
+      return rows.map((r, idx) => {
+        const isDemo = (r.teamName || '').toUpperCase().includes('DEM');
+        const num = isDemo ? 99 : (r.teamNumber ? parseInt(r.teamNumber, 10) : idx + 1);
+        let setId = r.setId;
+        if (isDemo) setId = 'E';
+        else if (!setId) {
+          if (num >= 1 && num <= 6) setId = 'A';
+          else if (num >= 7 && num <= 12) setId = 'B';
+          else if (num >= 13 && num <= 18) setId = 'C';
+          else if (num >= 19 && num <= 23) setId = 'D';
+          else setId = 'A';
+        }
+        return {
+          id: r.id,
+          queueOrder: idx + 1,
+          teamName: r.teamName,
+          coordinator: r.coordinator,
+          teamNumber: num,
+          setId,
+          createdAt: Number(r.createdAt),
+          currentStage: r.currentStage || 1,
+          isCompleted: Boolean(r.isCompleted)
+        };
+      });
+    } catch (e) {
+      console.error('getWaitlist error:', e);
+      return [];
+    }
   }
 
   broadcastAll(message) {

@@ -159,6 +159,20 @@ app.get('/api/leaderboard', (req, res) => {
   });
 });
 
+app.get('/api/waitlist', async (req, res) => {
+  try {
+    const waitlist = await gameEngine.getWaitlist();
+    res.json({
+      gameStarted: gameEngine.gameStarted,
+      totalWaiting: waitlist.filter((w) => !w.isCompleted && w.currentStage === 1).length,
+      totalTeams: waitlist.length,
+      waitlist
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Admin & Coordinator APIs
 app.use('/api/admin', adminRouter);
 app.use('/api/coordinator', coordinatorRouter);
