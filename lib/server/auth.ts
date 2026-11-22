@@ -21,13 +21,13 @@ export function getClientIp(request: Request): string {
   return request.headers.get('x-real-ip') || 'global';
 }
 
-export function getTeamSession(request: Request) {
+export async function getTeamSession(request: Request) {
   const cookies = parseCookies(request);
   const authHeader = request.headers.get('authorization') || '';
   const token = cookies.device_token || authHeader.replace(/^Bearer\s+/i, '');
 
   if (!token) return null;
-  const session = gameEngine.verifyDeviceToken(token);
+  const session = await gameEngine.verifyDeviceToken(token);
   if (!session) return null;
 
   return {

@@ -73,6 +73,16 @@ export default function AdminPage() {
     return () => window.removeEventListener('fo:ws_message', onAdminUpdate);
   }, []);
 
+  // Periodic Supabase sync poll for Admin Portal (every 3s)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      fetchOverview();
+      fetchTeams();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
   // Answer key countdown timer
   useEffect(() => {
     if (!answersUnlocked) return;

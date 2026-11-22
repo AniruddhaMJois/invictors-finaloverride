@@ -91,15 +91,81 @@ export class GameEngine {
       } catch (e) {}
     }
 
-    // Load all teams
-    const teamRows = await db.all('SELECT * FROM teams');
+    // 1. Batch load global settings, hints, stage data, alerts, and teams from Supabase in parallel
+    const [
+      alertRows,
+      teamRows,
+      memberRows,
+      progressRows,
+      hintUnlockRows,
+      violationRows,
+      noteRows
+    ] = await Promise.all([
+      db.all("SELECT * FROM alerts WHERE dismissed = FALSE ORDER BY at DESC LIMIT 50"),
+      db.all("SELECT * FROM teams"),
+      db.all("SELECT id, team_id, name, is_leader FROM members"),
+      db.all("SELECT team_id, stage, fragment, solved_at, wrong_attempts FROM progress"),
+      db.all("SELECT team_id, stage, n, unlocked_at, expires_at, penalty_seconds FROM hint_unlocks"),
+      db.all("SELECT team_id, penalty_seconds FROM violations WHERE waived = FALSE"),
+      db.all("SELECT team_id, text FROM notes")
+    ]);
+
+    // Active coordinator alerts from Supabase
+    this.adminAlerts = alertRows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      coordinator: r.coordinator,
+      teamId: r.team_id,
+      teamName: r.team_name,
+      message: r.message,
+      at: Number(r.at)
+    }));
+
+    // Group relational data by team_id
+    const membersByTeam = new Map();
+    for (const m of memberRows) {
+      if (!membersByTeam.has(m.team_id)) membersByTeam.set(m.team_id, []);
+      membersByTeam.get(m.team_id).push({ id: m.id, name: m.name, isLeader: !!m.is_leader });
+    }
+
+    const progressByTeam = new Map();
+    for (const p of progressRows) {
+      if (!progressByTeam.has(p.team_id)) progressByTeam.set(p.team_id, []);
+      progressByTeam.get(p.team_id).push(p);
+    }
+
+    const hintsByTeam = new Map();
+    for (const h of hintUnlockRows) {
+      if (!hintsByTeam.has(h.team_id)) hintsByTeam.set(h.team_id, []);
+      hintsByTeam.get(h.team_id).push(h);
+    }
+
+    const violationsByTeam = new Map();
+    for (const v of violationRows) {
+      if (!violationsByTeam.has(v.team_id)) violationsByTeam.set(v.team_id, []);
+      violationsByTeam.get(v.team_id).push(v);
+    }
+
+    const notesByTeam = new Map();
+    for (const n of noteRows) {
+      notesByTeam.set(n.team_id, n.text);
+    }
+
+    const devicesByTeam = new Map();
+    for (const d of deviceRows) {
+      if (!devicesByTeam.has(d.team_id)) devicesByTeam.set(d.team_id, []);
+      devicesByTeam.get(d.team_id).push(d.token);
+    }
+
+    // Hydrate all teams into memory
+    this.teams.clear();
     for (const t of teamRows) {
-      const members = await db.all('SELECT id, name, is_leader FROM members WHERE team_id = ?', [t.id]);
-      const progress = await db.all('SELECT * FROM progress WHERE team_id = ?', [t.id]);
-      const hints = await db.all('SELECT * FROM hint_unlocks WHERE team_id = ?', [t.id]);
-      const violations = await db.all('SELECT * FROM violations WHERE team_id = ? AND waived = FALSE', [t.id]);
-      const noteRow = await db.get('SELECT text FROM notes WHERE team_id = ?', [t.id]);
-      const boundDevices = await db.all('SELECT token FROM devices WHERE team_id = ?', [t.id]);
+      const members = membersByTeam.get(t.id) || [];
+      const progress = progressByTeam.get(t.id) || [];
+      const hints = hintsByTeam.get(t.id) || [];
+      const violations = violationsByTeam.get(t.id) || [];
+      const noteText = notesByTeam.get(t.id) || '';
+      const boundDevices = devicesByTeam.get(t.id) || [];
 
       const fragments = {};
       let wrongAttemptsCurrent = 0;
@@ -120,11 +186,11 @@ export class GameEngine {
       for (const h of hints) {
         if (!hintsUsed[h.stage]) hintsUsed[h.stage] = {};
         hintsUsed[h.stage][h.n] = {
-          unlockedAt: h.unlocked_at,
-          expiresAt: h.expires_at,
-          penaltySeconds: h.penalty_seconds
+          unlockedAt: Number(h.unlocked_at),
+          expiresAt: Number(h.expires_at),
+          penaltySeconds: Number(h.penalty_seconds)
         };
-        totalHintPenalties += h.penalty_seconds;
+        totalHintPenalties += Number(h.penalty_seconds);
       }
 
       let totalTabPenalties = 0;
@@ -144,12 +210,12 @@ export class GameEngine {
         teamName: t.name,
         coordinator: t.coordinator,
         teamPin: t.team_pin,
-        members: members.map((m) => ({ id: m.id, name: m.name, isLeader: !!m.is_leader })),
+        members,
         currentStage: t.current_stage,
-        isCompleted: !!t.is_completed,
-        startTime: t.start_time,
-        endTime: t.end_time,
-        isPaused: t.is_paused === 1,
+        isCompleted: Boolean(t.is_completed),
+        startTime: t.start_time ? Number(t.start_time) : null,
+        endTime: t.end_time ? Number(t.end_time) : null,
+        isPaused: Boolean(t.is_paused),
         pausedAt: t.paused_at ? parseInt(t.paused_at, 10) : 0,
         pausedAccumMs: t.paused_accum_ms ? parseInt(t.paused_accum_ms, 10) : 0,
         totalPenaltySeconds: totalPenalties,
@@ -161,94 +227,93 @@ export class GameEngine {
         wrongAttemptsCurrentStage: wrongAttemptsCurrent,
         fragments,
         hintsUsed,
-        notepadText: noteRow ? noteRow.text : '',
+        notepadText: noteText,
         boundDevicesCount: boundDevices.length,
         verificationCode
       });
     }
+  }
 
-    // If local database has no teams and Supabase is configured, hydrate from Supabase Cloud
-    if (this.teams.size === 0 && supabaseSync.isConfigured()) {
-      const cloud = await supabaseSync.loadAll();
-      if (cloud && cloud.teams.length > 0) {
-        console.log(`☁️ SupabaseSync: Hydrated ${cloud.teams.length} squads from Supabase Cloud.`);
-        for (const t of cloud.teams) {
-          const members = cloud.members.filter((m) => m.team_id === t.id);
-          const progress = cloud.progress.filter((p) => p.team_id === t.id);
-          const hints = cloud.hintUnlocks.filter((h) => h.team_id === t.id);
-          const violations = cloud.violations.filter((v) => v.team_id === t.id && !v.waived);
-          const noteRow = cloud.notes.find((n) => n.team_id === t.id);
-          const boundDevices = cloud.devices.filter((d) => d.team_id === t.id);
+  async loadTeamFromDb(teamId) {
+    const t = await db.get('SELECT * FROM teams WHERE id = ?', [teamId]);
+    if (!t) return null;
 
-          const fragments = {};
-          let wrongAttemptsCurrent = 0;
-          let totalWrongAttemptPenalties = 0;
+    const [members, progress, hints, violations, noteRow, boundDevices] = await Promise.all([
+      db.all('SELECT id, name, is_leader FROM members WHERE team_id = ?', [t.id]),
+      db.all('SELECT * FROM progress WHERE team_id = ?', [t.id]),
+      db.all('SELECT * FROM hint_unlocks WHERE team_id = ?', [t.id]),
+      db.all('SELECT * FROM violations WHERE team_id = ? AND waived = FALSE', [t.id]),
+      db.get('SELECT text FROM notes WHERE team_id = ?', [t.id]),
+      db.all('SELECT token FROM devices WHERE team_id = ?', [t.id])
+    ]);
 
-          for (const p of progress) {
-            fragments[p.stage] = p.fragment;
-            if (p.stage === t.current_stage) {
-              wrongAttemptsCurrent = p.wrong_attempts;
-            }
-            if (p.wrong_attempts > 5) {
-              totalWrongAttemptPenalties += (p.wrong_attempts - 5) * 60;
-            }
-          }
+    const fragments = {};
+    let wrongAttemptsCurrent = 0;
+    let totalWrongAttemptPenalties = 0;
 
-          let totalHintPenalties = 0;
-          const hintsUsed = {};
-          for (const h of hints) {
-            if (!hintsUsed[h.stage]) hintsUsed[h.stage] = {};
-            hintsUsed[h.stage][h.n] = {
-              unlockedAt: parseInt(h.unlocked_at, 10),
-              expiresAt: parseInt(h.expires_at, 10),
-              penaltySeconds: h.penalty_seconds,
-              text: null
-            };
-            totalHintPenalties += h.penalty_seconds;
-          }
-
-          let totalTabPenalties = 0;
-          for (const v of violations) {
-            totalTabPenalties += v.penalty_seconds || 120;
-          }
-
-          const totalPenalties = totalHintPenalties + totalTabPenalties + totalWrongAttemptPenalties;
-
-          let verificationCode = null;
-          if (t.is_completed) {
-            const raw = `${t.id}:${t.name}:${t.start_time}:${t.end_time}:${totalPenalties}:${CONFIG.SALT}`;
-            verificationCode = crypto.createHash('sha256').update(raw).digest('hex').substring(0, 12).toUpperCase();
-          }
-
-          this.teams.set(t.id, {
-            id: t.id,
-            teamName: t.name,
-            coordinator: t.coordinator,
-            teamPin: t.team_pin,
-            members: members.map((m) => ({ id: m.id, name: m.name, isLeader: m.is_leader })),
-            currentStage: t.current_stage,
-            isCompleted: Boolean(t.is_completed),
-            startTime: t.start_time,
-            endTime: t.end_time,
-            isPaused: Boolean(t.is_paused),
-            pausedAt: t.paused_at ? parseInt(t.paused_at, 10) : 0,
-            pausedAccumMs: t.paused_accum_ms ? parseInt(t.paused_accum_ms, 10) : 0,
-            totalPenaltySeconds: totalPenalties,
-            penaltyBreakdown: {
-              hints: totalHintPenalties,
-              tabSwitches: totalTabPenalties,
-              wrongAttempts: totalWrongAttemptPenalties
-            },
-            wrongAttemptsCurrentStage: wrongAttemptsCurrent,
-            fragments,
-            hintsUsed,
-            notepadText: noteRow ? noteRow.text : '',
-            boundDevicesCount: boundDevices.length,
-            verificationCode
-          });
-        }
+    for (const p of progress) {
+      fragments[p.stage] = p.fragment;
+      if (p.stage === t.current_stage) {
+        wrongAttemptsCurrent = p.wrong_attempts;
+      }
+      if (p.wrong_attempts > 5) {
+        totalWrongAttemptPenalties += (p.wrong_attempts - 5) * 60;
       }
     }
+
+    let totalHintPenalties = 0;
+    const hintsUsed = {};
+    for (const h of hints) {
+      if (!hintsUsed[h.stage]) hintsUsed[h.stage] = {};
+      hintsUsed[h.stage][h.n] = {
+        unlockedAt: Number(h.unlocked_at),
+        expiresAt: Number(h.expires_at),
+        penaltySeconds: Number(h.penalty_seconds)
+      };
+      totalHintPenalties += Number(h.penalty_seconds);
+    }
+
+    let totalTabPenalties = 0;
+    for (const v of violations) {
+      totalTabPenalties += v.penalty_seconds || 120;
+    }
+
+    const totalPenalties = totalHintPenalties + totalTabPenalties + totalWrongAttemptPenalties;
+
+    let verificationCode = undefined;
+    if (t.is_completed && t.start_time && t.end_time) {
+      verificationCode = this.calculateVerificationCode(t.name, t.start_time, t.end_time);
+    }
+
+    const teamObj = {
+      id: t.id,
+      teamName: t.name,
+      coordinator: t.coordinator,
+      teamPin: t.team_pin,
+      members: members.map((m) => ({ id: m.id, name: m.name, isLeader: !!m.is_leader })),
+      currentStage: t.current_stage,
+      isCompleted: Boolean(t.is_completed),
+      startTime: t.start_time ? Number(t.start_time) : null,
+      endTime: t.end_time ? Number(t.end_time) : null,
+      isPaused: Boolean(t.is_paused),
+      pausedAt: t.paused_at ? parseInt(t.paused_at, 10) : 0,
+      pausedAccumMs: t.paused_accum_ms ? parseInt(t.paused_accum_ms, 10) : 0,
+      totalPenaltySeconds: totalPenalties,
+      penaltyBreakdown: {
+        hints: totalHintPenalties,
+        tabSwitches: totalTabPenalties,
+        wrongAttempts: totalWrongAttemptPenalties
+      },
+      wrongAttemptsCurrentStage: wrongAttemptsCurrent,
+      fragments,
+      hintsUsed,
+      notepadText: noteRow ? noteRow.text : '',
+      boundDevicesCount: boundDevices.length,
+      verificationCode
+    };
+
+    this.teams.set(t.id, teamObj);
+    return teamObj;
   }
 
   generateDeviceToken(teamId, memberId) {
@@ -257,7 +322,7 @@ export class GameEngine {
     return `${Buffer.from(raw).toString('base64url')}.${hmac}`;
   }
 
-  verifyDeviceToken(token) {
+  async verifyDeviceToken(token) {
     if (!token || !token.includes('.')) return null;
     const [payload, hmac] = token.split('.');
     const expected = crypto
@@ -265,9 +330,35 @@ export class GameEngine {
       .update(Buffer.from(payload, 'base64url').toString())
       .digest('hex');
 
-    if (crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expected))) {
-      return this.tokens.get(token) || null;
+    if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(expected))) {
+      return null;
     }
+
+    if (this.tokens.has(token)) {
+      return this.tokens.get(token);
+    }
+
+    // Direct Supabase devices table lookup
+    const deviceRow = await db.get('SELECT team_id, member_id FROM devices WHERE token = ?', [token]);
+    if (deviceRow) {
+      const session = { teamId: deviceRow.team_id, memberId: deviceRow.member_id };
+      this.tokens.set(token, session);
+      return session;
+    }
+
+    // Decode from cryptographically signed payload
+    try {
+      const decoded = Buffer.from(payload, 'base64url').toString();
+      const parts = decoded.split(':');
+      if (parts.length >= 2) {
+        const teamId = Number(parts[0]);
+        const memberId = Number(parts[1]);
+        const session = { teamId, memberId };
+        this.tokens.set(token, session);
+        return session;
+      }
+    } catch {}
+
     return null;
   }
 
@@ -364,6 +455,12 @@ export class GameEngine {
       insertedMembers[0].id
     );
 
+    const readyTime = Date.now();
+    const effectiveStartTime = teamStartTime ? readyTime : null;
+    if (teamStartTime && readyTime !== now) {
+      await db.run('UPDATE teams SET start_time = ? WHERE id = ?', [readyTime, teamId]);
+    }
+
     const teamState = {
       id: teamId,
       teamName: cleanTeamName,
@@ -372,7 +469,7 @@ export class GameEngine {
       members: insertedMembers,
       currentStage: 1,
       isCompleted: false,
-      startTime: teamStartTime,
+      startTime: effectiveStartTime,
       endTime: null,
       isPaused: false,
       pausedAt: 0,
@@ -1633,7 +1730,7 @@ export class GameEngine {
     await db.run('DELETE FROM violations WHERE team_id = ?', [teamId]);
     await db.run('DELETE FROM submissions WHERE team_id = ?', [teamId]);
     await db.run('DELETE FROM stage_data WHERE team_id = ?', [teamId]);
-    await db.run('UPDATE notes SET text = "" WHERE team_id = ?', [teamId]);
+    await db.run("UPDATE notes SET text = '' WHERE team_id = ?", [teamId]);
 
     await db.run(
       'UPDATE teams SET current_stage = 1, is_completed = FALSE, start_time = ?, end_time = NULL WHERE id = ?',
@@ -1685,14 +1782,28 @@ export class GameEngine {
     this.adminAlerts.unshift(alert);
     if (this.adminAlerts.length > 50) this.adminAlerts.pop();
 
+    try {
+      await db.run(
+        'INSERT INTO alerts (id, type, coordinator, team_id, team_name, message, at, dismissed) VALUES (?, ?, ?, ?, ?, ?, ?, FALSE)',
+        [alert.id, alert.type, alert.coordinator, alert.teamId, alert.teamName, alert.message, alert.at]
+      );
+    } catch (err) {
+      console.warn('Could not persist alert to Supabase:', err.message);
+    }
+
     await this.logAudit(`Coordinator: ${coordinator}`, 'call_admin', alert);
     this.broadcastAdmin({ type: 'admin:alert', alert });
     this.broadcastAdminUpdate();
     return alert;
   }
 
-  dismissAdminAlert(alertId) {
+  async dismissAdminAlert(alertId) {
     this.adminAlerts = this.adminAlerts.filter((a) => a.id !== alertId);
+    try {
+      await db.run('UPDATE alerts SET dismissed = TRUE WHERE id = ?', [alertId]);
+    } catch (err) {
+      console.warn('Could not dismiss alert in Supabase:', err.message);
+    }
     this.broadcastAdminUpdate();
   }
 

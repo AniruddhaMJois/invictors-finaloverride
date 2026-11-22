@@ -12,6 +12,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized: Coordinator authentication required.' }, { status: 401 });
   }
 
+  await gameEngine.loadFromDb();
   const teams = gameEngine.getCoordinatorTeams(session.coordinator);
   return NextResponse.json({
     coordinator: session.coordinator,

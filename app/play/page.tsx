@@ -52,6 +52,27 @@ export default function GameDashboardPage() {
     setViewStage(currentStageNum);
   }, [currentStageNum]);
 
+  // Periodic Supabase sync poll for Participant Dashboard
+  // In Standby lobby, polls every 2s so admin launch instantly activates Stage 1
+  // In active game, polls every 4s to catch admin pauses/skips/resets
+  useEffect(() => {
+    const isStandby = !state?.gameStarted || !state?.startTime;
+    const intervalMs = isStandby ? 2000 : 4000;
+    const poller = setInterval(async () => {
+      try {
+        const res = await fetch('/api/state');
+        if (res.ok) {
+          const fresh = await res.json();
+          if (fresh && fresh.id) {
+            teamState.value = fresh;
+          }
+        }
+      } catch {}
+    }, intervalMs);
+
+    return () => clearInterval(poller);
+  }, [state?.gameStarted, state?.startTime]);
+
   // Hint State
   const [confirmHintLevel, setConfirmHintLevel] = useState<1 | 2 | null>(null);
   const [showNotepadModal, setShowNotepadModal] = useState(false);

@@ -11,5 +11,6 @@ export async function GET(request: Request) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized: Master Admin authentication required.' }, { status: 401 });
   }
+  await gameEngine.loadFromDb();
   return NextResponse.json(gameEngine.getAdminOverview());
 }

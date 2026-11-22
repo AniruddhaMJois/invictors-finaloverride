@@ -15,9 +15,13 @@ const SYNTHESIS_MISSIONS = [
 
 export async function GET(request: Request) {
   await ensureInitialized();
-  const session = getTeamSession(request);
+  const session = await getTeamSession(request);
   if (!session) {
     return NextResponse.json({ error: 'Device token missing or expired.' }, { status: 401 });
+  }
+
+  if (!gameEngine.teams.has(session.teamId)) {
+    await gameEngine.loadTeamFromDb(session.teamId);
   }
 
   const team = gameEngine.teams.get(session.teamId);

@@ -67,6 +67,15 @@ export default function CoordinatorPage() {
     return () => window.removeEventListener('fo:ws_message', onCoordUpdate);
   }, []);
 
+  // Periodic Supabase sync poll for Coordinator Portal (every 3s)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      loadTeams();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
   // Lockout countdown timer
   useEffect(() => {
     if (lockoutSeconds <= 0) return;
