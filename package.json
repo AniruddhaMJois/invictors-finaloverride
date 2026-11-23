@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "FINAL OVERRIDE — 6-Stage Cybersecurity Escape Room Web App",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
