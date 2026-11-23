@@ -4,6 +4,7 @@ import { ensureInitialized } from '@/lib/server/init';
 import { getTeamSession } from '@/lib/server/auth';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const SET_STAGE5_BYTES: Record<string, string[]> = {
   A: ['48', '45', '58', '38', '32', '44'], // HEX82D

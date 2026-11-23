@@ -33,24 +33,27 @@ export class GameEngine {
   }
 
   async loadFromDb() {
-    // Load global settings
-    const gameStartedRow = await db.get("SELECT value FROM settings WHERE key = 'game_started'");
-    const pausedRow = await db.get("SELECT value FROM settings WHERE key = 'paused'");
-    const pausedAtRow = await db.get("SELECT value FROM settings WHERE key = 'paused_at'");
-    const pausedAccumRow = await db.get("SELECT value FROM settings WHERE key = 'paused_accum_ms'");
+    // 1. Single query for all global settings
+    const settingsRows = await db.all("SELECT key, value FROM settings WHERE key IN ('game_started', 'paused', 'paused_at', 'paused_accum_ms')");
+    const settingsMap = Object.fromEntries(settingsRows.map((r) => [r.key, r.value]));
 
     if (isTestRunner()) {
       this.gameStarted = true;
     } else {
-      this.gameStarted = gameStartedRow ? gameStartedRow.value === '1' : false;
+      this.gameStarted = settingsMap.game_started === '1';
     }
-    this.globalPaused = pausedRow ? pausedRow.value === '1' : false;
-    this.globalPausedAt = pausedAtRow ? parseInt(pausedAtRow.value, 10) : 0;
-    this.globalPausedAccumMs = pausedAccumRow ? parseInt(pausedAccumRow.value, 10) : 0;
+    this.globalPaused = settingsMap.paused === '1';
+    this.globalPausedAt = settingsMap.paused_at ? parseInt(settingsMap.paused_at, 10) : 0;
+    this.globalPausedAccumMs = settingsMap.paused_accum_ms ? parseInt(settingsMap.paused_accum_ms, 10) : 0;
 
-    // Load and seed hints
+    // 2. Parallel load of hints, devices, and stage_data
+    const [hintRows, deviceRows, stageDataRows] = await Promise.all([
+      db.all('SELECT stage, n, text FROM hints'),
+      db.all('SELECT token, team_id, member_id FROM devices'),
+      db.all('SELECT team_id, stage, key, value FROM stage_data')
+    ]);
+
     this.hints = {};
-    const hintRows = await db.all('SELECT stage, n, text FROM hints');
     if (hintRows.length === 0) {
       for (const [stg, levels] of Object.entries(STAGE_HINTS)) {
         for (const [lvl, text] of Object.entries(levels)) {
@@ -69,14 +72,10 @@ export class GameEngine {
       }
     }
 
-    // Load devices
-    const deviceRows = await db.all('SELECT token, team_id, member_id FROM devices');
     for (const d of deviceRows) {
       this.tokens.set(d.token, { teamId: d.team_id, memberId: d.member_id });
     }
 
-    // Load stage data (pads and workbenches)
-    const stageDataRows = await db.all('SELECT team_id, stage, key, value FROM stage_data');
     for (const r of stageDataRows) {
       try {
         if (r.key === 'pad') {
@@ -91,7 +90,6 @@ export class GameEngine {
       } catch (e) {}
     }
 
-    // 1. Batch load global settings, hints, stage data, alerts, and teams from Supabase in parallel
     await this.syncAllTeamsFromDb();
   }
 
@@ -1099,19 +1097,19 @@ export class GameEngine {
     hourly.push(now);
     this.chatHourlyTimestamps.set(teamId, hourly);
 
-    // Dynamic WARDEN config based on team assigned set
-    const assignedSet = team.setId || 'A';
-    let accessPhrase = 'aurora';
-    let targetFragment = 'ORBIT';
-    try {
-      const qSet = await db.get('SELECT stage3_phrase, stage3_answer FROM public.question_sets WHERE set_id = ?', [assignedSet]);
-      if (qSet) {
-        if (qSet.stage3_phrase) accessPhrase = qSet.stage3_phrase.toLowerCase();
-        if (qSet.stage3_answer) targetFragment = qSet.stage3_answer;
-      }
-    } catch (e) {
-      console.warn('Failed to query stage3 config for set:', e.message);
-    }
+    // Dynamic WARDEN config based on team assigned set (instant in-memory lookup)
+    const SET_STAGE3_PRESETS = {
+      A: { phrase: 'aurora', answer: 'ORBIT' },
+      B: { phrase: 'helios', answer: 'QUANTUM' },
+      C: { phrase: 'vanguard', answer: 'CIPHER' },
+      D: { phrase: 'polaris', answer: 'VECTOR' },
+      E: { phrase: 'zenith', answer: 'MATRIX' }
+    };
+
+    const assignedSet = (team.setId || 'A').toUpperCase();
+    const preset = SET_STAGE3_PRESETS[assignedSet] || SET_STAGE3_PRESETS.A;
+    const accessPhrase = preset.phrase;
+    const targetFragment = preset.answer;
 
     // Evaluate prompt using pure WARDEN Engine (< 5ms)
     const evalResult = evaluateWardenPrompt(userText, {
@@ -1141,29 +1139,32 @@ export class GameEngine {
     chat = [...chat, userMsg, wardenMsg].slice(-30);
     this.stageChats.set(teamId, chat);
 
-    // Write-through to SQLite stage_data
-    await db.run(
-      'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, 3, ?, ?)',
-      [teamId, 'chat_history', JSON.stringify(chat)]
-    );
+    // Parallel write to stage_data and audit log
+    await Promise.all([
+      db.run(
+        'INSERT OR REPLACE INTO stage_data (team_id, stage, key, value) VALUES (?, 3, ?, ?)',
+        [teamId, 'chat_history', JSON.stringify(chat)]
+      ),
+      db.run(
+        'INSERT INTO audit (at, actor, action, detail) VALUES (?, ?, ?, ?)',
+        [
+          now,
+          `team:${teamId}:${memberName || 'Operator'}`,
+          'stage3_chat',
+          JSON.stringify({
+            userText,
+            reply: evalResult.reply,
+            isSuccess: evalResult.isSuccess,
+            isDecoy: evalResult.isDecoy
+          })
+        ]
+      )
+    ]);
 
-    await supabaseSync.syncStageData(teamId, 3, 'chat_history', chat);
-
-    // Log chat interaction to audit table
-    await db.run(
-      'INSERT INTO audit (at, actor, action, detail) VALUES (?, ?, ?, ?)',
-      [
-        now,
-        `team:${teamId}:${memberName || 'Operator'}`,
-        'stage3_chat',
-        JSON.stringify({
-          userText,
-          reply: evalResult.reply,
-          isSuccess: evalResult.isSuccess,
-          isDecoy: evalResult.isDecoy
-        })
-      ]
-    );
+    // Non-blocking background sync for Supabase REST
+    supabaseSync.syncStageData(teamId, 3, 'chat_history', chat).catch((err) => {
+      console.warn('Non-blocking syncStageData notice:', err?.message);
+    });
 
     // Broadcast to team devices via WebSocket
     this.broadcastToTeam(teamId, {

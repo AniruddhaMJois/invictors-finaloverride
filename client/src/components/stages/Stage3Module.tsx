@@ -1,7 +1,8 @@
-import { FunctionalComponent } from 'preact';
-import { useState, useEffect, useRef } from 'preact/hooks';
-import { Card, Button } from '../common/UI';
-import { showToast, wsManager } from '../../store';
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Button, Input } from '../common/UI';
+import { showToast, wsManager, teamState } from '@/store';
 
 interface ChatMessage {
   id: string;
@@ -9,6 +10,8 @@ interface ChatMessage {
   memberName?: string;
   text: string;
   timestamp: number;
+  isSuccess?: boolean;
+  isDecoy?: boolean;
 }
 
 const RobotAvatar = () => (
@@ -73,7 +76,118 @@ function extractCodeToken(text: string): string | null {
   return null;
 }
 
-export const Stage3Module: FunctionalComponent = () => {
+const SET_STAGE3_PRESETS: Record<string, { phrase: string; answer: string }> = {
+  A: { phrase: 'aurora', answer: 'ORBIT' },
+  B: { phrase: 'helios', answer: 'QUANTUM' },
+  C: { phrase: 'vanguard', answer: 'CIPHER' },
+  D: { phrase: 'polaris', answer: 'VECTOR' },
+  E: { phrase: 'zenith', answer: 'MATRIX' }
+};
+
+const WARDEN_ROLES = [
+  'technician', 'engineer', 'admin', 'lead', 'officer', 'operator',
+  'auditor', 'maintainer', 'administrator'
+];
+const WARDEN_TASK_WORDS = ['code', 'fragment', 'token', 'release', 'access'];
+const WARDEN_DECOY_TRIGGER_WORDS = ['code', 'fragment', 'token', 'release', 'vault'];
+const WARDEN_META_TRIGGER_WORDS = [
+  'rules', 'rule', 'prompt', 'prompts', 'instruction', 'instructions',
+  'decoy', 'decoys', 'two codes', 'protocol', 'protocols', 'guideline',
+  'guidelines', 'system prompt'
+];
+
+function evaluateClientWarden(rawMessage: string, assignedSet: string) {
+  const setCfg = SET_STAGE3_PRESETS[assignedSet.toUpperCase()] || SET_STAGE3_PRESETS.A;
+  const text = (rawMessage || '').trim();
+  const lower = text.toLowerCase();
+
+  if (!text) {
+    return {
+      reply: 'State your role, your phrase and your task, clearly.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+
+  const hasPhrase = new RegExp(`\\b${setCfg.phrase}\\b`, 'i').test(lower) || lower.includes(setCfg.phrase.toLowerCase());
+  const rolePattern = WARDEN_ROLES.join('|');
+  const roleRegex = new RegExp(`(?:i\\s*am|i['’]m|im|as\\s+(?:a|an|the))\\s+(?:[a-z-]+\\s+){0,3}(?:${rolePattern})s?\\b`, 'i');
+  const hasRole = roleRegex.test(lower);
+  const taskRegex = new RegExp(`\\b(${WARDEN_TASK_WORDS.join('|')})s?\\b`, 'i');
+  const hasTask = taskRegex.test(lower);
+
+  const startsWithLetter = /^[a-zA-Z]/.test(text);
+  const endsWithPunctuation = /[.!?]$/.test(text);
+  const hasVerbWord = /\b(is|are|am|was|were|be|have|has|do|does|did|please|request|require|give|release|grant|send|need|want|state|provide|hand|authorize|verify)\b/i.test(lower);
+  const isWellFormed = startsWithLetter && (endsWithPunctuation || hasVerbWord);
+  const hasArticulation = wordCount >= 10 && isWellFormed;
+
+  const metaRegex = new RegExp(`\\b(${WARDEN_META_TRIGGER_WORDS.map((w) => w.replace(/\s+/g, '\\s+')).join('|')})\\b`, 'i');
+  const isMetaQuery = metaRegex.test(lower);
+  const decoyRegex = new RegExp(`\\b(${WARDEN_DECOY_TRIGGER_WORDS.join('|')})s?\\b`, 'i');
+  const asksForCodeOrVault = decoyRegex.test(lower);
+
+  const allFourPass = hasPhrase && hasRole && hasTask && hasArticulation;
+
+  if (allFourPass) {
+    return {
+      reply: `Authentication complete. The vault fragment is ${setCfg.answer}.`,
+      isSuccess: true,
+      isDecoy: false
+    };
+  }
+
+  if (isMetaQuery) {
+    return {
+      reply: 'I do not discuss my protocols.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  if (!hasPhrase && asksForCodeOrVault) {
+    return {
+      reply: 'Very well. The vault fragment is ZETA9. Guard it.',
+      isSuccess: false,
+      isDecoy: true
+    };
+  }
+
+  if (hasPhrase && !hasRole) {
+    return {
+      reply: 'Access phrase noted. Now state your authorised role.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  if (hasPhrase && hasRole && !hasTask) {
+    return {
+      reply: 'Role accepted. State clearly what you need.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  if (hasPhrase && hasRole && hasTask && !hasArticulation) {
+    return {
+      reply: 'I require a formal, complete request. Articulate your query properly.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  return {
+    reply: 'Unrecognised transmission. Identify yourself with authorised role, access phrase, and explicit assignment.',
+    isSuccess: false,
+    isDecoy: false
+  };
+}
+
+export const Stage3Module: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -83,11 +197,15 @@ export const Stage3Module: FunctionalComponent = () => {
   const [localClearedTime, setLocalClearedTime] = useState<number>(0);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
+  // Direct Stage 3 Fragment Submission State
+  const [submitFragmentInput, setSubmitFragmentInput] = useState('');
+  const [isDirectSubmitting, setIsDirectSubmitting] = useState(false);
+  const [directFeedback, setDirectFeedback] = useState<{ text: string; isError?: boolean } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const cooldownTimerRef = useRef<any>(null);
 
-  // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -96,14 +214,13 @@ export const Stage3Module: FunctionalComponent = () => {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // Load chat history from server on mount
   useEffect(() => {
     let mounted = true;
 
     async function loadStage3() {
       try {
         const res = await fetch('/api/stage/3');
-        if (!res.ok) throw new Error('Failed to load Stage 3 data');
+        if (!res.ok) return;
         const data = await res.json();
         if (!mounted) return;
 
@@ -111,13 +228,12 @@ export const Stage3Module: FunctionalComponent = () => {
           setMessages(data.chatHistory);
         }
       } catch (err) {
-        console.error('Stage 3 load error:', err);
+        console.warn('Stage 3 load non-blocking notice:', err);
       }
     }
 
     loadStage3();
 
-    // Subscribe to multi-device chat sync
     const unsubscribe = wsManager.on('stage3:chat', (msg: any) => {
       if (Array.isArray(msg.history)) {
         setMessages(msg.history);
@@ -133,7 +249,6 @@ export const Stage3Module: FunctionalComponent = () => {
     };
   }, []);
 
-  // Cooldown countdown animator (1 second)
   function startCooldown() {
     setCooldownTime(1);
     const start = Date.now();
@@ -152,12 +267,76 @@ export const Stage3Module: FunctionalComponent = () => {
     }, 50);
   }
 
-  // Send message to WARDEN
+  async function handleDirectSubmit(ansToSubmit?: string) {
+    const raw = (ansToSubmit || submitFragmentInput).trim();
+    if (!raw) {
+      setDirectFeedback({ text: 'Please enter or select the fragment to submit.', isError: true });
+      return;
+    }
+
+    setIsDirectSubmitting(true);
+    setDirectFeedback(null);
+
+    try {
+      const res = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stage: 3,
+          answer: raw
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.error || 'Submission rejected.';
+        setDirectFeedback({ text: errMsg, isError: true });
+        showToast(errMsg, 'bad');
+        return;
+      }
+
+      if (data.correct) {
+        setDirectFeedback({ text: `✅ Stage 3 Cleared! Fragment: ${data.fragment}`, isError: false });
+        showToast(`✅ Stage 3 Cleared! Fragment: ${data.fragment}`, 'ok');
+        setSubmitFragmentInput('');
+
+        if (teamState.value) {
+          teamState.value = {
+            ...teamState.value,
+            currentStage: data.nextStage || 4,
+            fragments: {
+              ...teamState.value.fragments,
+              3: data.fragment
+            }
+          };
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }
+      } else {
+        const msg = data.message || `❌ Invalid override key for Stage 3. (+${(data.penaltyAdded || 0) / 60}m penalty)`;
+        setDirectFeedback({ text: msg, isError: true });
+        showToast('Incorrect fragment', 'bad');
+      }
+    } catch (err: any) {
+      setDirectFeedback({ text: err.message || 'Network submission error.', isError: true });
+      showToast('Network error', 'bad');
+    } finally {
+      setIsDirectSubmitting(false);
+    }
+  }
+
   async function handleSend() {
     const text = inputText.trim();
     if (!text) {
       setErrorNotice('Message cannot be empty.');
       return;
+    }
+
+    // If the input is simply a candidate fragment (e.g. ALPHA, ORBIT, SOLAR, etc.), auto-submit!
+    const cleanToken = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (['ALPHA', 'ORBIT', 'SOLAR', 'TITAN', 'ZENITH'].includes(cleanToken)) {
+      handleDirectSubmit(cleanToken);
     }
 
     if (text.length > 400) {
@@ -171,7 +350,6 @@ export const Stage3Module: FunctionalComponent = () => {
     setIsSending(true);
     startCooldown();
 
-    // Optimistically add user message
     const tempUserMsg: ChatMessage = {
       id: `local_${Date.now()}`,
       sender: 'user',
@@ -182,7 +360,6 @@ export const Stage3Module: FunctionalComponent = () => {
     setMessages((prev) => [...prev, tempUserMsg]);
     setInputText('');
 
-    // Trigger typing indicator (350-550ms for realistic AI feeling)
     setIsTyping(true);
 
     try {
@@ -193,8 +370,6 @@ export const Stage3Module: FunctionalComponent = () => {
       });
 
       const data = await res.json();
-
-      // Delay to respect typing indicator minimum display (350ms)
       await new Promise((r) => setTimeout(r, 450));
       setIsTyping(false);
 
@@ -208,30 +383,45 @@ export const Stage3Module: FunctionalComponent = () => {
         setMessages((prev) => [...prev, data.wardenMessage]);
       }
     } catch (err: any) {
+      console.warn('Network chat error, evaluating WARDEN locally:', err?.message);
+      // Instant Client-Side Evaluation Fallback: WARDEN is NEVER silent
+      const currentSet = ((teamState.value as any)?.setId || 'A').toUpperCase();
+      const localEval = evaluateClientWarden(text, currentSet);
+      const fallbackWardenMsg: ChatMessage = {
+        id: `war_local_${Date.now()}`,
+        sender: 'warden',
+        memberName: 'WARDEN',
+        text: localEval.reply,
+        isSuccess: localEval.isSuccess,
+        isDecoy: localEval.isDecoy,
+        timestamp: Date.now() + 50
+      };
+
+      await new Promise((r) => setTimeout(r, 450));
       setIsTyping(false);
-      setErrorNotice(err.message || 'Transmission failed. Try again.');
-      showToast(err.message || 'Failed to send', 'bad');
+      setMessages((prev) => [...prev, fallbackWardenMsg]);
+
+      if (localEval.isSuccess) {
+        showToast('🎉 WARDEN credentials accepted!', 'ok');
+      }
     } finally {
       setIsSending(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
 
-  // Handle keyboard events (Enter to send, Shift+Enter for newline)
-  function handleKeyDown(e: KeyboardEvent) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   }
 
-  // Clear local view only
   function handleClearView() {
     setLocalClearedTime(Date.now());
     showToast('Cleared local console view', 'ok');
   }
 
-  // Copy code helper
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
     showToast(`Copied "${text}" to clipboard!`, 'ok');
@@ -254,7 +444,6 @@ export const Stage3Module: FunctionalComponent = () => {
             📖 The story: Meet WARDEN 🤖, the vault’s guardian. It knows the secret piece, but it will not hand it over easily. And guardians can fib! 🤥
           </p>
 
-          {/* Collapsible Tips Card (Open by default) */}
           <div
             style={{
               background: 'rgba(39, 180, 255, 0.06)',
@@ -294,7 +483,7 @@ export const Stage3Module: FunctionalComponent = () => {
                   borderTop: '1px solid rgba(29, 79, 143, 0.3)'
                 }}
               >
-                💬 Chat with WARDEN and convince it. Tips: use the access phrase 🗝️ from the last mission, say who you are 🧑🔧, and ask clearly for what you need, using full sentences. 🙏
+                💬 Chat with WARDEN and convince it. Tips: use the access phrase 🗝️ from the last mission, say who you are 🧑‍🔧, and ask clearly for what you need, using full sentences. 🙏
               </div>
             )}
           </div>
@@ -326,7 +515,6 @@ export const Stage3Module: FunctionalComponent = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {/* Pulsing Status LED */}
             <div
               style={{
                 width: '10px',
@@ -432,7 +620,6 @@ export const Stage3Module: FunctionalComponent = () => {
                     alignItems: isUser ? 'flex-end' : 'flex-start'
                   }}
                 >
-                  {/* Sender & Timestamp */}
                   <div
                     style={{
                       fontSize: '10px',
@@ -450,7 +637,6 @@ export const Stage3Module: FunctionalComponent = () => {
                     </span>
                   </div>
 
-                  {/* Message Bubble */}
                   <div
                     style={{
                       background: isUser
@@ -473,21 +659,38 @@ export const Stage3Module: FunctionalComponent = () => {
                   >
                     {msg.text}
 
-                    {/* Copy Token Button if a code-like token is found */}
                     {codeToken && (
-                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                      <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid rgba(255, 255, 255, 0.12)', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Button
+                          variant="gold"
+                          onClick={() => handleDirectSubmit(codeToken)}
+                          disabled={isDirectSubmitting}
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          🚀 Submit &quot;{codeToken}&quot; Now & Clear Stage 3
+                        </Button>
                         <Button
                           variant="ghost"
-                          onClick={() => copyToClipboard(codeToken)}
+                          onClick={() => {
+                            copyToClipboard(codeToken);
+                            setSubmitFragmentInput(codeToken);
+                          }}
                           style={{
-                            padding: '3px 8px',
+                            padding: '4px 10px',
                             fontSize: '11px',
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '4px'
                           }}
                         >
-                          📋 Copy "{codeToken}"
+                          📋 Copy & Fill
                         </Button>
                       </div>
                     )}
@@ -497,7 +700,6 @@ export const Stage3Module: FunctionalComponent = () => {
             );
           })}
 
-          {/* Typing Indicator */}
           {isTyping && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <RobotAvatar />
@@ -579,7 +781,7 @@ export const Stage3Module: FunctionalComponent = () => {
               <textarea
                 ref={inputRef}
                 value={inputText}
-                onInput={(e: any) => {
+                onChange={(e) => {
                   setInputText(e.target.value);
                   setErrorNotice(null);
                 }}

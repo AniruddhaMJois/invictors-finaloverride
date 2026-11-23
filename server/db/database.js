@@ -14,6 +14,7 @@ pg.types.setTypeParser(20, (val) => (val === null ? null : parseInt(val, 10)));
 
 function resolvePgUrl(url) {
   if (!url) return url;
+  if (url.includes('.pooler.supabase.com')) return url;
   try {
     const parsed = new URL(url);
     const dbMatch = parsed.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
@@ -28,6 +29,21 @@ function resolvePgUrl(url) {
       return parsed.toString();
     }
   } catch (e) {}
+
+  // Robust fallback for connection strings with special unencoded characters
+  if (url.includes('db.') && url.includes('.supabase.co')) {
+    const match = url.match(/db\.([a-z0-9]+)\.supabase\.co/);
+    if (match) {
+      const projectRef = match[1];
+      const region = process.env.SUPABASE_REGION || 'ap-southeast-2';
+      let resolved = url.replace(/db\.[a-z0-9]+\.supabase\.co(?::5432)?/, `aws-0-${region}.pooler.supabase.com:6543`);
+      if (!resolved.includes(`postgres.${projectRef}`)) {
+        resolved = resolved.replace(/(:\/\/)([^:@]+)(:[^@]+@)/, `$1$2.${projectRef}$3`);
+      }
+      return resolved;
+    }
+  }
+
   return url;
 }
 

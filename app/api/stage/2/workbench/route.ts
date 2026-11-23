@@ -4,6 +4,7 @@ import { ensureInitialized } from '@/lib/server/init';
 import { getTeamSession } from '@/lib/server/auth';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function PUT(request: Request) {
   try {
