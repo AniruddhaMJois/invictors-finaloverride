@@ -25,6 +25,7 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [hints, setHints] = useState<Record<number, Record<number, string>>>({});
   const [editingHints, setEditingHints] = useState<Record<string, string>>({});
+  const [selectedHintSet, setSelectedHintSet] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [teamTimeline, setTeamTimeline] = useState<any>(null);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
@@ -274,9 +275,9 @@ export default function AdminPage() {
     }
   }
 
-  async function fetchHints() {
+  async function fetchHints(set = selectedHintSet) {
     try {
-      const res = await adminFetch('/api/admin/hints');
+      const res = await adminFetch(`/api/admin/hints?set=${set}`);
       if (res.ok) {
         const data = await res.json();
         setHints(data.hints || {});
@@ -532,11 +533,11 @@ export default function AdminPage() {
       const res = await adminFetch(`/api/admin/hints/${stage}/${n}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, setId: selectedHintSet })
       });
       if (res.ok) {
-        showToast(`Stage ${stage} Hint ${n} saved and pushed to players`, 'ok');
-        fetchHints();
+        showToast(`Set ${selectedHintSet} Mission ${stage} Hint ${n} saved to database & pushed to players`, 'ok');
+        fetchHints(selectedHintSet);
         fetchAuditLogs();
       }
     } catch {
@@ -547,11 +548,13 @@ export default function AdminPage() {
   async function handleRevertHint(stage: number, n: number) {
     try {
       const res = await adminFetch(`/api/admin/hints/${stage}/${n}/revert`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setId: selectedHintSet })
       });
       if (res.ok) {
-        showToast(`Stage ${stage} Hint ${n} reverted to default`, 'ok');
-        fetchHints();
+        showToast(`Set ${selectedHintSet} Mission ${stage} Hint ${n} reverted to default in database`, 'ok');
+        fetchHints(selectedHintSet);
         fetchAuditLogs();
       }
     } catch {
@@ -1370,17 +1373,85 @@ export default function AdminPage() {
         {activeTab === 'hints' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--txt)' }}>Hints Manager & Live Editor</h1>
+              <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--txt)' }}>Hints Manager & Live Database Editor</h1>
               <p style={{ color: 'var(--muted)', fontSize: '13px' }}>
-                Edits take effect immediately for active squads on that stage and persist across server restarts.
+                Customize and harden hints per question set. All edits are updated directly to Supabase PostgreSQL and broadcast live to teams.
               </p>
+            </div>
+
+            {/* Set Selection Bar */}
+            <div
+              style={{
+                background: 'var(--bg2)',
+                border: '1px solid var(--line)',
+                borderRadius: 'var(--r-md)',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}
+            >
+              <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+                📁 Select Target Question Set ({selectedHintSet}):
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'A', name: 'Set A: Cosmic Vault Alpha' },
+                  { id: 'B', name: 'Set B: Cyber Nexus Beta' },
+                  { id: 'C', name: 'Set C: Quantum Matrix Gamma' },
+                  { id: 'D', name: 'Set D: Hyperion Vector Delta' },
+                  { id: 'E', name: 'Set E: Demo Simulation Epsilon' }
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setSelectedHintSet(s.id as any);
+                      fetchHints(s.id as any);
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      background: selectedHintSet === s.id ? 'var(--accent)' : 'var(--bg)',
+                      color: selectedHintSet === s.id ? '#000' : 'var(--txt)',
+                      border: selectedHintSet === s.id ? '1px solid var(--accent)' : '1px solid var(--line)',
+                      boxShadow: selectedHintSet === s.id ? '0 0 12px rgba(255, 184, 0, 0.35)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--muted)',
+                  background: 'rgba(39, 180, 255, 0.08)',
+                  border: '1px solid var(--line)',
+                  padding: '10px 14px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span>⚡</span>
+                <span>
+                  Currently editing hints for <strong>Set {selectedHintSet}</strong>. Modifying and saving hints here updates the <strong>public.hints</strong> table in Supabase and synchronizes in real time to all squads solving Set {selectedHintSet}.
+                </span>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {[1, 2, 3, 4, 5, 6].map((stageNum) => (
                 <Card key={stageNum}>
                   <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent)', marginBottom: '14px' }}>
-                    Mission {stageNum} Hints
+                    Mission {stageNum} Hints (Set {selectedHintSet})
                   </h3>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
@@ -1428,14 +1499,14 @@ export default function AdminPage() {
                           style={{ fontSize: '12px', padding: '6px 12px' }}
                           onClick={() => handleSaveHint(stageNum, 1)}
                         >
-                          💾 Save Hint 1
+                          💾 Save Hint 1 (Set {selectedHintSet})
                         </Button>
                         <Button
                           variant="ghost"
                           style={{ fontSize: '12px', padding: '6px 12px' }}
                           onClick={() => handleRevertHint(stageNum, 1)}
                         >
-                          Revert
+                          Revert (Set {selectedHintSet})
                         </Button>
                       </div>
                     </div>
@@ -1467,14 +1538,14 @@ export default function AdminPage() {
                           style={{ fontSize: '12px', padding: '6px 12px' }}
                           onClick={() => handleSaveHint(stageNum, 2)}
                         >
-                          💾 Save Hint 2
+                          💾 Save Hint 2 (Set {selectedHintSet})
                         </Button>
                         <Button
                           variant="ghost"
                           style={{ fontSize: '12px', padding: '6px 12px' }}
                           onClick={() => handleRevertHint(stageNum, 2)}
                         >
-                          Revert
+                          Revert (Set {selectedHintSet})
                         </Button>
                       </div>
                     </div>

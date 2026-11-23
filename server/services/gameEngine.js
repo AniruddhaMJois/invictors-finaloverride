@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { db } from '../db/database.js';
 import { supabaseSync } from '../db/supabaseSync.js';
-import { CONFIG, STAGE_ANSWERS, STAGE_HINTS } from '../config/index.js';
+import { CONFIG, STAGE_ANSWERS, STAGE_HINTS, SET_STAGE_HINTS } from '../config/index.js';
 import { getTeamVariant } from '../../shared/ciphers.js';
 import { evaluateWardenPrompt } from './wardenEngine.js';
 
@@ -28,7 +28,7 @@ export class GameEngine {
     this.globalPausedAt = 0;
     this.globalPausedAccumMs = 0;
     this.wsClients = new Set(); // WebSocket clients
-    this.hints = {}; // stage -> { 1: text, 2: text }
+    this.hints = JSON.parse(JSON.stringify(SET_STAGE_HINTS)); // set_id -> stage -> { 1: text, 2: text }
     this.adminAlerts = []; // list of active alerts from coordinators
   }
 
@@ -48,28 +48,17 @@ export class GameEngine {
 
     // 2. Parallel load of hints, devices, and stage_data
     const [hintRows, deviceRows, stageDataRows] = await Promise.all([
-      db.all('SELECT stage, n, text FROM hints'),
+      db.all('SELECT set_id, stage, n, text FROM hints').catch(() => db.all('SELECT stage, n, text FROM hints').catch(() => [])),
       db.all('SELECT token, team_id, member_id FROM devices'),
       db.all('SELECT team_id, stage, key, value FROM stage_data')
     ]);
 
-    this.hints = {};
-    if (hintRows.length === 0) {
-      for (const [stg, levels] of Object.entries(STAGE_HINTS)) {
-        for (const [lvl, text] of Object.entries(levels)) {
-          await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [
-            parseInt(stg, 10),
-            parseInt(lvl, 10),
-            text
-          ]);
-        }
-      }
-      this.hints = JSON.parse(JSON.stringify(STAGE_HINTS));
-    } else {
-      for (const h of hintRows) {
-        if (!this.hints[h.stage]) this.hints[h.stage] = {};
-        this.hints[h.stage][h.n] = h.text;
-      }
+    this.hints = JSON.parse(JSON.stringify(SET_STAGE_HINTS));
+    for (const h of hintRows) {
+      const sId = (h.set_id || 'A').toUpperCase();
+      if (!this.hints[sId]) this.hints[sId] = {};
+      if (!this.hints[sId][h.stage]) this.hints[sId][h.stage] = {};
+      this.hints[sId][h.stage][h.n] = h.text;
     }
 
     for (const d of deviceRows) {
@@ -916,11 +905,10 @@ export class GameEngine {
     const now = Date.now();
 
     const getHintContent = () => {
-      if (stage === 2 && hintNumber === 2) {
-        const variant = getTeamVariant(teamId, team.setId);
-        if (variant && variant.hintClue) return variant.hintClue;
-      }
-      return this.hints[stage]?.[hintNumber] || STAGE_HINTS[stage][hintNumber];
+      const sId = (team.setId || 'A').toUpperCase();
+      const setHints = this.hints[sId] || this.hints.A || SET_STAGE_HINTS.A;
+      const defaultSetHints = SET_STAGE_HINTS[sId] || SET_STAGE_HINTS.A;
+      return setHints?.[stage]?.[hintNumber] || defaultSetHints?.[stage]?.[hintNumber] || SET_STAGE_HINTS.A[stage][hintNumber];
     };
 
     if (existing) {
@@ -1460,6 +1448,10 @@ export class GameEngine {
 
     const now = Date.now();
 
+    const teamSet = (team.setId || 'A').toUpperCase();
+    const setHints = this.hints[teamSet] || this.hints.A || SET_STAGE_HINTS.A;
+    const defaultSetHints = SET_STAGE_HINTS[teamSet] || SET_STAGE_HINTS.A;
+
     const sanitizedHints = {};
     for (const [stg, levels] of Object.entries(team.hintsUsed)) {
       sanitizedHints[stg] = {};
@@ -1469,17 +1461,12 @@ export class GameEngine {
         if (!isExpired) {
           const stgNum = parseInt(stg, 10);
           const lvlNum = parseInt(lvl, 10);
-          if (stgNum === 2 && lvlNum === 2) {
-            const variant = getTeamVariant(teamId, team.setId);
-            hintText = variant?.hintClue || this.hints[stg]?.[lvl] || STAGE_HINTS[stg]?.[lvl] || null;
-          } else {
-            hintText =
-              this.hints[stgNum]?.[lvlNum] ||
-              this.hints[stg]?.[lvl] ||
-              STAGE_HINTS[stgNum]?.[lvlNum] ||
-              STAGE_HINTS[stg]?.[lvl] ||
-              null;
-          }
+          hintText =
+            setHints?.[stgNum]?.[lvlNum] ||
+            setHints?.[stg]?.[lvl] ||
+            defaultSetHints?.[stgNum]?.[lvlNum] ||
+            defaultSetHints?.[stg]?.[lvl] ||
+            null;
         }
         sanitizedHints[stg][lvl] = {
           unlockedAt: h.unlockedAt,
@@ -1676,52 +1663,74 @@ export class GameEngine {
     await supabaseSync.syncAudit(now, actor, action, detail);
   }
 
-  getHints() {
+  getHints(setId = 'A') {
+    const sId = (setId || 'A').toUpperCase();
+    return JSON.parse(JSON.stringify(this.hints[sId] || this.hints.A || SET_STAGE_HINTS.A));
+  }
+
+  getAllHints() {
     return JSON.parse(JSON.stringify(this.hints));
   }
 
-  async updateHint(stage, n, text, actor = 'Admin') {
+  async updateHint(stage, n, text, actor = 'Admin', setId = 'A') {
     const stg = parseInt(stage, 10);
     const num = parseInt(n, 10);
+    const sId = (setId || 'A').toUpperCase();
     const cleanText = (text || '').trim();
     if (!cleanText) throw new Error('Hint text cannot be empty.');
 
-    if (!this.hints[stg]) this.hints[stg] = {};
-    this.hints[stg][num] = cleanText;
+    if (!this.hints[sId]) this.hints[sId] = {};
+    if (!this.hints[sId][stg]) this.hints[sId][stg] = {};
+    this.hints[sId][stg][num] = cleanText;
 
-    await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [stg, num, cleanText]);
-    await supabaseSync.syncHintUpdate(stg, num, cleanText);
-    await this.logAudit(actor, 'edit_hint', { stage: stg, n: num, textLength: cleanText.length });
+    await db.run('INSERT OR REPLACE INTO hints (set_id, stage, n, text) VALUES (?, ?, ?, ?)', [
+      sId,
+      stg,
+      num,
+      cleanText
+    ]);
+    await supabaseSync.syncHintUpdate(stg, num, cleanText, sId);
+    await this.logAudit(actor, 'edit_hint', { set_id: sId, stage: stg, n: num, textLength: cleanText.length });
 
-    // Update active teams playing this stage
+    // Update active teams playing this stage and this set
     for (const team of this.teams.values()) {
-      if (team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
+      const teamSet = (team.setId || 'A').toUpperCase();
+      if (teamSet === sId && team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
         this.broadcastTeamState(team.id);
       }
     }
     this.broadcastAdminUpdate();
-    return this.hints;
+    return this.hints[sId];
   }
 
-  async revertHint(stage, n, actor = 'Admin') {
+  async revertHint(stage, n, actor = 'Admin', setId = 'A') {
     const stg = parseInt(stage, 10);
     const num = parseInt(n, 10);
-    const original = STAGE_HINTS[stg]?.[num];
+    const sId = (setId || 'A').toUpperCase();
+    const original = (SET_STAGE_HINTS[sId] || SET_STAGE_HINTS.A)?.[stg]?.[num];
     if (!original) throw new Error('Default hint not found.');
 
-    if (!this.hints[stg]) this.hints[stg] = {};
-    this.hints[stg][num] = original;
+    if (!this.hints[sId]) this.hints[sId] = {};
+    if (!this.hints[sId][stg]) this.hints[sId][stg] = {};
+    this.hints[sId][stg][num] = original;
 
-    await db.run('INSERT OR REPLACE INTO hints (stage, n, text) VALUES (?, ?, ?)', [stg, num, original]);
-    await this.logAudit(actor, 'revert_hint', { stage: stg, n: num });
+    await db.run('INSERT OR REPLACE INTO hints (set_id, stage, n, text) VALUES (?, ?, ?, ?)', [
+      sId,
+      stg,
+      num,
+      original
+    ]);
+    await supabaseSync.syncHintUpdate(stg, num, original, sId);
+    await this.logAudit(actor, 'revert_hint', { set_id: sId, stage: stg, n: num });
 
     for (const team of this.teams.values()) {
-      if (team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
+      const teamSet = (team.setId || 'A').toUpperCase();
+      if (teamSet === sId && team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
         this.broadcastTeamState(team.id);
       }
     }
     this.broadcastAdminUpdate();
-    return this.hints;
+    return this.hints[sId];
   }
 
   getAdminOverview() {

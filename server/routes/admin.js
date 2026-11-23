@@ -161,15 +161,17 @@ adminRouter.get('/answer-key', requireAdmin, async (req, res) => {
 
 // Hints Manager: Read Hints
 adminRouter.get('/hints', requireAdmin, (req, res) => {
-  res.json({ hints: gameEngine.getHints() });
+  const set = req.query.set || 'A';
+  res.json({ hints: gameEngine.getHints(set), allHints: gameEngine.getAllHints() });
 });
 
 // Hints Manager: Update Hint
 adminRouter.put('/hints/:stage/:n', requireAdmin, async (req, res) => {
   try {
-    const { text } = req.body;
-    const hints = await gameEngine.updateHint(req.params.stage, req.params.n, text, 'Admin');
-    res.json({ success: true, hints });
+    const { text, setId } = req.body;
+    const sId = setId || req.query.set || 'A';
+    const hints = await gameEngine.updateHint(req.params.stage, req.params.n, text, 'Admin', sId);
+    res.json({ success: true, hints, setId: sId });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -178,8 +180,10 @@ adminRouter.put('/hints/:stage/:n', requireAdmin, async (req, res) => {
 // Hints Manager: Revert Hint
 adminRouter.post('/hints/:stage/:n/revert', requireAdmin, async (req, res) => {
   try {
-    const hints = await gameEngine.revertHint(req.params.stage, req.params.n, 'Admin');
-    res.json({ success: true, hints });
+    const { setId } = req.body || {};
+    const sId = setId || req.query.set || 'A';
+    const hints = await gameEngine.revertHint(req.params.stage, req.params.n, 'Admin', sId);
+    res.json({ success: true, hints, setId: sId });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

@@ -19,8 +19,10 @@ export async function PUT(
 
     const { stage, n } = await params;
     const body = await request.json();
-    const hints = await gameEngine.updateHint(stage, n, body.text, 'Admin');
-    return NextResponse.json({ success: true, hints });
+    const url = new URL(request.url);
+    const sId = (body.setId || url.searchParams.get('set') || 'A').toUpperCase();
+    const hints = await gameEngine.updateHint(stage, n, body.text, 'Admin', sId);
+    return NextResponse.json({ success: true, hints, setId: sId });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }

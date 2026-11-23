@@ -12,5 +12,12 @@ export async function GET(request: Request) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized: Master Admin authentication required.' }, { status: 401 });
   }
-  return NextResponse.json({ hints: gameEngine.getHints() });
+  const url = new URL(request.url);
+  const setParam = url.searchParams.get('set');
+  const sId = (setParam || 'A').toUpperCase();
+  return NextResponse.json({
+    hints: gameEngine.getHints(sId),
+    allHints: gameEngine.getAllHints(),
+    currentSet: sId
+  });
 }

@@ -18,8 +18,14 @@ export async function POST(
     }
 
     const { stage, n } = await params;
-    const hints = await gameEngine.revertHint(stage, n, 'Admin');
-    return NextResponse.json({ success: true, hints });
+    let body: any = {};
+    try {
+      body = await request.json();
+    } catch (e) {}
+    const url = new URL(request.url);
+    const sId = (body.setId || url.searchParams.get('set') || 'A').toUpperCase();
+    const hints = await gameEngine.revertHint(stage, n, 'Admin', sId);
+    return NextResponse.json({ success: true, hints, setId: sId });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }

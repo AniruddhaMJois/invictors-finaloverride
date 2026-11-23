@@ -129,7 +129,12 @@ export class DatabaseManager {
     // Convert INSERT OR REPLACE INTO hints
     translated = translated.replace(
       /INSERT\s+OR\s+REPLACE\s+INTO\s+hints\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/gi,
-      'INSERT INTO hints ($1) VALUES ($2) ON CONFLICT (stage, n) DO UPDATE SET text = EXCLUDED.text'
+      (match, cols, vals) => {
+        if (cols.includes('set_id')) {
+          return `INSERT INTO hints (${cols}) VALUES (${vals}) ON CONFLICT (set_id, stage, n) DO UPDATE SET text = EXCLUDED.text`;
+        }
+        return `INSERT INTO hints (${cols}) VALUES (${vals}) ON CONFLICT (stage, n) DO UPDATE SET text = EXCLUDED.text`;
+      }
     );
 
     // Convert INSERT OR REPLACE INTO stage_data
@@ -338,12 +343,29 @@ export class DatabaseManager {
 
     await this.run(`
       CREATE TABLE IF NOT EXISTS public.hints (
+        set_id VARCHAR(10) NOT NULL DEFAULT 'A',
         stage INT NOT NULL,
         n INT NOT NULL,
         text TEXT NOT NULL,
-        PRIMARY KEY (stage, n)
+        PRIMARY KEY (set_id, stage, n)
       );
     `);
+
+    try {
+      await this.run(`ALTER TABLE public.hints ADD COLUMN IF NOT EXISTS set_id VARCHAR(10) DEFAULT 'A';`);
+      const pkCheck = await this.query(`
+        SELECT kcu.column_name 
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu 
+          ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+        WHERE tc.table_name = 'hints' AND tc.constraint_type = 'PRIMARY KEY';
+      `);
+      const pkCols = (pkCheck.rows || []).map((r) => r.column_name);
+      if (!pkCols.includes('set_id')) {
+        await this.run(`ALTER TABLE public.hints DROP CONSTRAINT IF EXISTS hints_pkey;`);
+        await this.run(`ALTER TABLE public.hints ADD CONSTRAINT hints_pkey PRIMARY KEY (set_id, stage, n);`);
+      }
+    } catch (e) {}
 
     await this.run(`
       CREATE TABLE IF NOT EXISTS public.stage_data (

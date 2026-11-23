@@ -260,10 +260,11 @@ export const supabaseSync = {
     }
   },
 
-  async syncHintUpdate(stage, n, text) {
+  async syncHintUpdate(stage, n, text, setId = 'A') {
     if (!this.isConfigured()) return;
     try {
       await supabase.from('hints').upsert({
+        set_id: (setId || 'A').toUpperCase(),
         stage,
         n,
         text
