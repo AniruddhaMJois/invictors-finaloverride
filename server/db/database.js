@@ -12,26 +12,46 @@ const { Pool } = pg;
 // Ensure PostgreSQL 64-bit integers (BIGINT/BIGSERIAL) are parsed as safe JS numbers
 pg.types.setTypeParser(20, (val) => (val === null ? null : parseInt(val, 10)));
 
+function resolvePgUrl(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    const dbMatch = parsed.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
+    if (dbMatch) {
+      const projectRef = dbMatch[1];
+      const region = process.env.SUPABASE_REGION || 'ap-southeast-2';
+      parsed.hostname = `aws-0-${region}.pooler.supabase.com`;
+      parsed.port = parsed.port === '5432' || !parsed.port ? '6543' : parsed.port;
+      if (!parsed.username.includes('.')) {
+        parsed.username = `postgres.${projectRef}`;
+      }
+      return parsed.toString();
+    }
+  } catch (e) {}
+  return url;
+}
+
 export class DatabaseManager {
   constructor() {
-    this.pgUrl =
+    const rawPgUrl =
       process.env.DATABASE_URL ||
       process.env.SUPABASE_DATABASE_URL ||
       process.env.POSTGRES_URL;
 
-    if (!this.pgUrl) {
+    if (!rawPgUrl) {
       throw new Error(
         'Supabase DATABASE_URL is not configured in .env. Local database has been removed; Supabase PostgreSQL is required.'
       );
     }
 
+    this.pgUrl = resolvePgUrl(rawPgUrl);
     console.log('⚡ DatabaseManager: Running strictly in Supabase PostgreSQL Mode');
     this.pool = new Pool({
       connectionString: this.pgUrl,
       ssl: { rejectUnauthorized: false },
-      max: 20,
+      max: 15,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000
+      connectionTimeoutMillis: 10000
     });
     this.isReady = false;
   }
