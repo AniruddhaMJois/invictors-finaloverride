@@ -4,6 +4,7 @@ import { getCoordinatorSession } from '@/lib/server/auth';
 import { ensureInitialized } from '@/lib/server/init';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {

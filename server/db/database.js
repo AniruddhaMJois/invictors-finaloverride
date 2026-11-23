@@ -69,7 +69,34 @@ export class DatabaseManager {
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000
     });
+
+    // Guard against unhandled errors on idle clients
+    this.pool.on('error', (err) => {
+      console.warn('⚠️ Idle PostgreSQL client notice:', err?.message);
+    });
+
     this.isReady = false;
+  }
+
+  async executeWithRetry(fn, maxRetries = 1) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        const isConnErr =
+          err.code === 'ECONNRESET' ||
+          err.code === 'EPIPE' ||
+          err.message?.includes('Connection terminated') ||
+          err.message?.includes('connection closed') ||
+          err.message?.includes('socket has been ended');
+        if (attempt < maxRetries && isConnErr) {
+          console.warn('⚠️ Retrying database query due to connection reset...');
+          await new Promise((r) => setTimeout(r, 100));
+          continue;
+        }
+        throw err;
+      }
+    }
   }
 
   // Translates application SQL syntax to Postgres-compatible query
@@ -162,24 +189,30 @@ export class DatabaseManager {
 
   async run(sql, params = []) {
     const pgSql = this.translateSqlToPg(sql);
-    const res = await this.pool.query(pgSql, params);
-    const lastID =
-      res.rows && res.rows.length > 0 && res.rows[0].id
-        ? parseInt(res.rows[0].id, 10)
-        : null;
-    return { lastID, changes: res.rowCount };
+    return await this.executeWithRetry(async () => {
+      const res = await this.pool.query(pgSql, params);
+      const lastID =
+        res.rows && res.rows.length > 0 && res.rows[0].id
+          ? parseInt(res.rows[0].id, 10)
+          : null;
+      return { lastID, changes: res.rowCount };
+    });
   }
 
   async get(sql, params = []) {
     const pgSql = this.translateSqlToPg(sql);
-    const res = await this.pool.query(pgSql, params);
-    return res.rows[0] || null;
+    return await this.executeWithRetry(async () => {
+      const res = await this.pool.query(pgSql, params);
+      return res.rows[0] || null;
+    });
   }
 
   async all(sql, params = []) {
     const pgSql = this.translateSqlToPg(sql);
-    const res = await this.pool.query(pgSql, params);
-    return res.rows || [];
+    return await this.executeWithRetry(async () => {
+      const res = await this.pool.query(pgSql, params);
+      return res.rows || [];
+    });
   }
 
   async init() {

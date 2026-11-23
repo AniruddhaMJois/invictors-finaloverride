@@ -671,11 +671,15 @@ export class GameEngine {
   }
 
   async submitAnswer(teamId, stage, rawAnswer) {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
 
-    if (this.globalPaused) {
-      throw new Error('Game is currently paused by organisers.');
+    if (this.globalPaused || team.isPaused) {
+      throw new Error('Game or squad is currently paused. Please wait for organisers to resume.');
     }
 
     if (!this.gameStarted && !team.startTime) {
@@ -883,8 +887,16 @@ export class GameEngine {
   }
 
   async unlockHint(teamId, stage, hintNumber) {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
+
+    if (this.globalPaused || team.isPaused) {
+      throw new Error('Game or squad is currently paused.');
+    }
 
     if (team.currentStage !== stage) {
       throw new Error('Can only unlock hints for the current stage.');
@@ -972,7 +984,11 @@ export class GameEngine {
   }
 
   async recordTabViolation(teamId) {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team || team.isCompleted) return { success: false };
 
     const now = Date.now();
@@ -1005,7 +1021,11 @@ export class GameEngine {
   }
 
   async saveNotes(teamId, text) {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) return;
 
     team.notepadText = text || '';
@@ -1187,7 +1207,11 @@ export class GameEngine {
   }
 
   async checkStage4Station(teamId, stationNum, rawValue) {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
 
     const n = parseInt(stationNum, 10);
@@ -1199,7 +1223,14 @@ export class GameEngine {
 
     const val = (rawValue || '').toString().trim().toUpperCase();
     const assignedSet = team.setId || 'A';
-    let correctMap = { 1: '9', 2: '1', 3: 'X' };
+    const fallbackAnswers = {
+      A: { 1: '9', 2: '1', 3: 'X' },
+      B: { 1: '8', 2: '4', 3: 'Z' },
+      C: { 1: '7', 2: '2', 3: 'Y' },
+      D: { 1: '6', 2: '3', 3: 'K' },
+      E: { 1: '5', 2: '7', 3: 'W' }
+    };
+    let correctMap = fallbackAnswers[assignedSet] || fallbackAnswers.A;
     try {
       const qSet = await db.get('SELECT stage4_stations FROM public.question_sets WHERE set_id = ?', [assignedSet]);
       if (qSet && qSet.stage4_stations) {
@@ -1910,7 +1941,11 @@ export class GameEngine {
   }
 
   async waivePenalty(teamId, violationId, actor = 'Admin') {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
 
     const vId = parseInt(violationId, 10);
@@ -1955,7 +1990,11 @@ export class GameEngine {
   }
 
   async skipStage(teamId, actor = 'Admin') {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
     if (team.isCompleted) throw new Error('Team has already completed the game.');
 
@@ -2011,7 +2050,11 @@ export class GameEngine {
   }
 
   async restartTeam(teamId, confirmName, actor = 'Admin') {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
 
     if ((confirmName || '').trim().toLowerCase() !== team.teamName.trim().toLowerCase()) {

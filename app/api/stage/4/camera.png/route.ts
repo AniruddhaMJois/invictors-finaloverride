@@ -6,6 +6,7 @@ import { gameEngine } from '@/server/services/gameEngine.js';
 import { createCameraPngBuffer } from '@/lib/server/cameraGenerator';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const SET_DIGITS: Record<string, string> = {
   A: '1',
