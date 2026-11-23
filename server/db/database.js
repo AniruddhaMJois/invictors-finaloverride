@@ -15,36 +15,26 @@ pg.types.setTypeParser(20, (val) => (val === null ? null : parseInt(val, 10)));
 function resolvePgUrl(url) {
   if (!url) return url;
   if (url.includes('.pooler.supabase.com')) return url;
-  try {
-    const parsed = new URL(url);
-    const dbMatch = parsed.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
-    if (dbMatch) {
-      const projectRef = dbMatch[1];
-      const region = process.env.SUPABASE_REGION || 'ap-southeast-2';
-      parsed.hostname = `aws-0-${region}.pooler.supabase.com`;
-      parsed.port = parsed.port === '5432' || !parsed.port ? '6543' : parsed.port;
-      if (!parsed.username.includes('.')) {
-        parsed.username = `postgres.${projectRef}`;
-      }
-      return parsed.toString();
-    }
-  } catch (e) {}
+  
+  const match = url.match(/db\.([a-z0-9]+)\.supabase\.co/);
+  if (!match) return url;
 
-  // Robust fallback for connection strings with special unencoded characters
-  if (url.includes('db.') && url.includes('.supabase.co')) {
-    const match = url.match(/db\.([a-z0-9]+)\.supabase\.co/);
-    if (match) {
-      const projectRef = match[1];
-      const region = process.env.SUPABASE_REGION || 'ap-southeast-2';
-      let resolved = url.replace(/db\.[a-z0-9]+\.supabase\.co(?::5432)?/, `aws-0-${region}.pooler.supabase.com:6543`);
-      if (!resolved.includes(`postgres.${projectRef}`)) {
-        resolved = resolved.replace(/(:\/\/)([^:@]+)(:[^@]+@)/, `$1$2.${projectRef}$3`);
-      }
-      return resolved;
-    }
+  const projectRef = match[1];
+  const region = process.env.SUPABASE_REGION || 'ap-southeast-2';
+
+  // 1. Rewrite hostname and port to the IPv4-compatible AWS Supavisor connection pooler
+  let resolved = url.replace(/db\.[a-z0-9]+\.supabase\.co(?::\d+)?/, `aws-0-${region}.pooler.supabase.com:6543`);
+
+  // 2. Ensure username is in the required pooler format: postgres.<projectRef>
+  if (!resolved.includes(`postgres.${projectRef}`)) {
+    resolved = resolved.replace(/:\/\/([^:@\/]+)(:[^@\/]+@|@)/, (m, user, passWithAt) => {
+      const newUser = user === 'postgres' ? `postgres.${projectRef}` : user.includes('.') ? user : `${user}.${projectRef}`;
+      return `://${newUser}${passWithAt}`;
+    });
   }
 
-  return url;
+  console.log(`⚡ Supabase DB Host automatically routed from direct IPv6 to IPv4 Pooler (aws-0-${region}.pooler.supabase.com:6543)`);
+  return resolved;
 }
 
 export class DatabaseManager {

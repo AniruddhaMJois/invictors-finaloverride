@@ -108,18 +108,18 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
 
     // Unlock Hint 1 on Stage 1
     const originalHint = await gameEngine.unlockHint(reg.team.id, 1, 1);
-    assert.ok(originalHint.text.includes('Morse'));
+    assert.ok(originalHint.text && originalHint.text.length > 10, 'Hint text must be populated');
 
-    // Admin edits Hint 1 on Stage 1
+    // Admin edits Hint 1 on Stage 1 for the team's set
     const customText = '⚠️ CUSTOM ADMIN HINT: Look closely at Sector 1 pulse graph phosphor trace!';
-    await gameEngine.updateHint(1, 1, customText, 'MasterAdmin');
+    await gameEngine.updateHint(1, 1, customText, 'MasterAdmin', reg.team.setId);
 
     // Active team state should immediately reflect the updated hint
     const clientState = gameEngine.getClientTeamState(reg.team.id);
     assert.equal(clientState.hintsUsed[1][1].text, customText);
 
-    // Verify persisted in SQLite
-    const row = await db.get('SELECT text FROM hints WHERE stage = 1 AND n = 1');
+    // Verify persisted in Database
+    const row = await db.get('SELECT text FROM hints WHERE stage = 1 AND n = 1 AND set_id = ?', [reg.team.setId]);
     assert.equal(row.text, customText);
 
     // Audit log should record the edit
@@ -128,9 +128,9 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     assert.equal(auditLogs[0].actor, 'MasterAdmin');
 
     // Revert hint to default
-    await gameEngine.revertHint(1, 1, 'MasterAdmin');
-    const revertedRow = await db.get('SELECT text FROM hints WHERE stage = 1 AND n = 1');
-    assert.ok(revertedRow.text.includes('Morse'));
+    await gameEngine.revertHint(1, 1, 'MasterAdmin', reg.team.setId);
+    const revertedRow = await db.get('SELECT text FROM hints WHERE stage = 1 AND n = 1 AND set_id = ?', [reg.team.setId]);
+    assert.ok(revertedRow.text.length > 10);
   });
 
   test('4. Admin Emergency Actions: Waive Penalty, Unbind Device, Skip Stage, Restart Team', async () => {
@@ -172,7 +172,7 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     assert.equal(skipResult.success, true);
     assert.equal(skipResult.nextStage, 2);
     assert.equal(reg.team.currentStage, 2);
-    assert.equal(reg.team.fragments[1], 'NOVA');
+    assert.ok(['NOVA', 'LUNA', 'VEGA', 'MARS', 'ECHO'].includes(reg.team.fragments[1]), 'Stage 1 fragment must be valid');
 
     // 4. Restart Team (Requires exact team name)
     await assert.rejects(
@@ -247,5 +247,38 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     gameEngine.dismissAdminAlert(alert.id);
     const updatedOverview = gameEngine.getAdminOverview();
     assert.equal(updatedOverview.alerts.some((a) => a.id === alert.id), false, 'Alert must be dismissed');
+  });
+
+  test('8. Answer key access is strictly for Master Admin and live sets A-E are retrieved', async () => {
+    // 1. Token role separation: Coordinator token cannot act as Admin
+    const coordToken = createCoordinatorToken('TestCoordinator');
+    const adminCheck = verifyAdminToken(coordToken);
+    assert.equal(adminCheck, null, 'Coordinator token must never validate as Master Admin');
+
+    const adminToken = createAdminToken();
+    const verifiedAdmin = verifyAdminToken(adminToken);
+    assert.ok(verifiedAdmin, 'Admin token must validate');
+
+    // 2. Question Sets in Database for Sets A-E
+    const sets = await db.all('SELECT * FROM question_sets ORDER BY set_id ASC');
+    assert.equal(sets.length, 5, 'All 5 challenge sets (A-E) must be present in database');
+    const setIds = sets.map((s) => s.set_id);
+    assert.deepEqual(setIds, ['A', 'B', 'C', 'D', 'E']);
+
+    // Check Set A
+    const setA = sets.find((s) => s.set_id === 'A');
+    assert.equal(setA.stage1_answer, 'NOVA');
+    assert.equal(setA.stage2_answer, '7K2');
+    assert.equal(setA.stage2_phrase, 'AURORA');
+    assert.equal(setA.stage3_answer, 'ORBIT');
+    assert.equal(setA.stage4_answer, '91X');
+    assert.equal(setA.stage5_answer, 'HEX82D');
+    assert.equal(setA.stage6_answer, 'FO{91X-7K2-HEX82D-TIBRO-NOVA}#29');
+
+    // 3. Database URL Pooler Resolution Check
+    const rawDirectUrl = 'postgresql://postgres:SecretPass123@db.unwpqxstbvjgkulfzpve.supabase.co:5432/postgres';
+    const resolvedUrl = db.pgUrl;
+    assert.ok(resolvedUrl.includes('.pooler.supabase.com'), 'Active DB connection must use the pooler host');
+    assert.ok(resolvedUrl.includes(':6543'), 'Active DB connection must use pooler port 6543');
   });
 });

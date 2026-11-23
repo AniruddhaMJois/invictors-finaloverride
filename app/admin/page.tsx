@@ -1131,21 +1131,34 @@ export default function AdminPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {/* Auto-hide Countdown Banner */}
-                <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Card style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <div style={{ fontWeight: 700, color: 'var(--gold)', fontSize: '15px' }}>
-                      ⚠️ Answer Keys Revealed & Audited
+                      ⚠️ Answer Keys Revealed & Audited (Master Admin Only)
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                       Auto-masking keys in {answerSecondsLeft} seconds.
                     </div>
                   </div>
-                  <CountdownRing
-                    secondsLeft={answerSecondsLeft}
-                    totalSeconds={60}
-                    size={48}
-                    color="var(--gold)"
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        setAnswersUnlocked(false);
+                        setAnswerSecondsLeft(0);
+                        showToast('Answer keys locked & masked', 'ok');
+                      }}
+                      style={{ fontSize: '12px', padding: '6px 14px', fontWeight: 700 }}
+                    >
+                      🔒 Lock & Mask Now
+                    </Button>
+                    <CountdownRing
+                      secondsLeft={answerSecondsLeft}
+                      totalSeconds={60}
+                      size={48}
+                      color="var(--gold)"
+                    />
+                  </div>
                 </Card>
 
                 {/* 5-Set Selector Tabs */}
@@ -1164,14 +1177,14 @@ export default function AdminPage() {
 
                 {/* Stage Answer Cards Grid */}
                 {(() => {
-                  const setInfo = {
+                  const defaultSetInfo = {
                     A: {
                       name: 'Set A — Cosmic Vault Alpha (Teams 01–06)',
                       s1: 'NOVA',
                       s2: '7K2',
                       s2Phrase: 'AURORA',
                       s3: 'ORBIT',
-                      s3Rule: 'Requires: "aurora" + Authorised role + Professional prompt',
+                      s3Rule: 'Requires: "I am a ...", Stage 2 fragment code "7K2", and secret word "AURORA"',
                       s4: '91X',
                       s4Stations: 'Station 1: 9 | Station 2: 1 | Station 3: X',
                       s5: 'HEX82D',
@@ -1185,7 +1198,7 @@ export default function AdminPage() {
                       s2: '4M9',
                       s2Phrase: 'CYPHER',
                       s3: 'SOLAR',
-                      s3Rule: 'Requires: "cypher" + Authorised role + Professional prompt',
+                      s3Rule: 'Requires: "I am a ...", Stage 2 fragment code "4M9", and secret word "CYPHER"',
                       s4: '84Z',
                       s4Stations: 'Station 1: 8 | Station 2: 4 | Station 3: Z',
                       s5: 'CORE7F',
@@ -1199,7 +1212,7 @@ export default function AdminPage() {
                       s2: '3X8',
                       s2Phrase: 'VORTEX',
                       s3: 'TITAN',
-                      s3Rule: 'Requires: "vortex" + Authorised role + Professional prompt',
+                      s3Rule: 'Requires: "I am a ...", Stage 2 fragment code "3X8", and secret word "VORTEX"',
                       s4: '72Y',
                       s4Stations: 'Station 1: 7 | Station 2: 2 | Station 3: Y',
                       s5: 'BYTE9A',
@@ -1213,7 +1226,7 @@ export default function AdminPage() {
                       s2: '5P3',
                       s2Phrase: 'NEBULA',
                       s3: 'ZENITH',
-                      s3Rule: 'Requires: "nebula" + Authorised role + Professional prompt',
+                      s3Rule: 'Requires: "I am a ...", Stage 2 fragment code "5P3", and secret word "NEBULA"',
                       s4: '63K',
                       s4Stations: 'Station 1: 6 | Station 2: 3 | Station 3: K',
                       s5: 'BITS1E',
@@ -1227,7 +1240,7 @@ export default function AdminPage() {
                       s2: '2D5',
                       s2Phrase: 'COSMOS',
                       s3: 'ALPHA',
-                      s3Rule: 'Requires: "cosmos" + Authorised role + Professional prompt',
+                      s3Rule: 'Requires: "I am a ...", Stage 2 fragment code "2D5", and secret word "COSMOS"',
                       s4: '57W',
                       s4Stations: 'Station 1: 5 | Station 2: 7 | Station 3: W',
                       s5: 'SYNC3C',
@@ -1236,6 +1249,8 @@ export default function AdminPage() {
                       s6Rule: 'A-Z: 57W (CTF) + 2D5 (Dec) + SYNC3C (Hex) + AHPLA (AI Rev) + ECHO (Sig) | Checksum: 22'
                     }
                   }[activeSetTab];
+
+                  const setInfo = (answersData?.sets && answersData.sets[activeSetTab]) || defaultSetInfo;
 
                   return (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>

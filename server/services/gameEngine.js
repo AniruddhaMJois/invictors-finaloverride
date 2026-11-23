@@ -1692,10 +1692,11 @@ export class GameEngine {
     await supabaseSync.syncHintUpdate(stg, num, cleanText, sId);
     await this.logAudit(actor, 'edit_hint', { set_id: sId, stage: stg, n: num, textLength: cleanText.length });
 
-    // Update active teams playing this stage and this set
+    // Update active teams playing this stage and this set who unlocked this hint
     for (const team of this.teams.values()) {
       const teamSet = (team.setId || 'A').toUpperCase();
-      if (teamSet === sId && team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
+      if (teamSet === sId && team.hintsUsed[stg]?.[num]) {
+        team.hintsUsed[stg][num].text = cleanText;
         this.broadcastTeamState(team.id);
       }
     }
@@ -1725,7 +1726,8 @@ export class GameEngine {
 
     for (const team of this.teams.values()) {
       const teamSet = (team.setId || 'A').toUpperCase();
-      if (teamSet === sId && team.currentStage === stg && team.hintsUsed[stg]?.[num]) {
+      if (teamSet === sId && team.hintsUsed[stg]?.[num]) {
+        team.hintsUsed[stg][num].text = original;
         this.broadcastTeamState(team.id);
       }
     }
