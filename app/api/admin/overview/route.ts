@@ -6,11 +6,22 @@ import { ensureInitialized } from '@/lib/server/init';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  await ensureInitialized();
+  try {
+    await ensureInitialized();
+  } catch (err: any) {
+    console.warn('ensureInitialized warning in /api/admin/overview:', err?.message);
+  }
+
   const session = getAdminSession(request);
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized: Master Admin authentication required.' }, { status: 401 });
   }
-  await gameEngine.syncAllTeamsFromDb();
+
+  try {
+    await gameEngine.syncAllTeamsFromDb();
+  } catch (err: any) {
+    console.warn('syncAllTeamsFromDb warning in /api/admin/overview:', err?.message);
+  }
+
   return NextResponse.json(gameEngine.getAdminOverview());
 }

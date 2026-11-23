@@ -135,9 +135,47 @@ export default function AdminPage() {
     return () => clearInterval(interval);
   }, [answersUnlocked]);
 
+  function getStoredAdminToken(): string {
+    if (typeof window === 'undefined') return '';
+    try {
+      return sessionStorage.getItem('admin_token') || localStorage.getItem('admin_token') || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function setStoredAdminToken(token: string) {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.setItem('admin_token', token);
+      localStorage.setItem('admin_token', token);
+    } catch {}
+  }
+
+  function clearStoredAdminToken() {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_token');
+    } catch {}
+  }
+
+  async function adminFetch(url: string, options: RequestInit = {}): Promise<Response> {
+    const token = getStoredAdminToken();
+    const headers = new Headers(options.headers || {});
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include'
+    });
+  }
+
   async function checkAuthAndLoad() {
     try {
-      const res = await fetch('/api/admin/overview');
+      const res = await adminFetch('/api/admin/overview');
       if (res.ok) {
         const data = await res.json();
         setOverview(data);
@@ -168,6 +206,9 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (res.ok) {
+        if (data.token) {
+          setStoredAdminToken(data.token);
+        }
         setPin('');
         setIsAuthenticated(true);
         showToast('Master Admin Authenticated! 🔐', 'gold');
@@ -190,11 +231,11 @@ export default function AdminPage() {
 
   async function handleLogout() {
     try {
-      await fetch('/api/admin/logout', { method: 'POST' });
+      await adminFetch('/api/admin/logout', { method: 'POST' });
+    } catch {} finally {
+      clearStoredAdminToken();
       setIsAuthenticated(false);
       showToast('Logged out of Admin Portal', 'ok');
-    } catch {
-      setIsAuthenticated(false);
     }
   }
 
@@ -202,7 +243,7 @@ export default function AdminPage() {
     if (isFetchingOverviewRef.current) return;
     isFetchingOverviewRef.current = true;
     try {
-      const res = await fetch('/api/admin/overview');
+      const res = await adminFetch('/api/admin/overview');
       if (res.ok) {
         const data = await res.json();
         setOverview(data);
@@ -216,7 +257,7 @@ export default function AdminPage() {
     if (isFetchingTeamsRef.current) return;
     isFetchingTeamsRef.current = true;
     try {
-      const res = await fetch('/api/admin/teams');
+      const res = await adminFetch('/api/admin/teams');
       if (res.ok) {
         const data = await res.json();
         const incoming = Array.isArray(data.teams) ? data.teams : [];
@@ -235,7 +276,7 @@ export default function AdminPage() {
 
   async function fetchHints() {
     try {
-      const res = await fetch('/api/admin/hints');
+      const res = await adminFetch('/api/admin/hints');
       if (res.ok) {
         const data = await res.json();
         setHints(data.hints || {});
@@ -252,7 +293,7 @@ export default function AdminPage() {
 
   async function fetchAuditLogs() {
     try {
-      const res = await fetch('/api/admin/audit?limit=100');
+      const res = await adminFetch('/api/admin/audit?limit=100');
       if (res.ok) {
         const data = await res.json();
         setAuditLogs(data.logs || []);
@@ -264,7 +305,7 @@ export default function AdminPage() {
     setSelectedTeamId(teamId);
     setLoadingTimeline(true);
     try {
-      const res = await fetch(`/api/admin/team/${teamId}/timeline`);
+      const res = await adminFetch(`/api/admin/team/${teamId}/timeline`);
       if (res.ok) {
         const data = await res.json();
         setTeamTimeline(data);
@@ -280,7 +321,7 @@ export default function AdminPage() {
     if (!overview) return;
     const nextState = !overview.counters.paused;
     try {
-      const res = await fetch('/api/admin/pause', {
+      const res = await adminFetch('/api/admin/pause', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pause: nextState })
@@ -297,7 +338,7 @@ export default function AdminPage() {
 
   async function handleStartGame() {
     try {
-      const res = await fetch('/api/admin/start-game', { method: 'POST' });
+      const res = await adminFetch('/api/admin/start-game', { method: 'POST' });
       if (res.ok) {
         showToast('🚀 Game Released! All squads can now enter Mission 1.', 'gold');
         fetchOverview();
@@ -313,7 +354,7 @@ export default function AdminPage() {
 
   async function handleStandbyGame() {
     try {
-      const res = await fetch('/api/admin/standby-game', { method: 'POST' });
+      const res = await adminFetch('/api/admin/standby-game', { method: 'POST' });
       if (res.ok) {
         showToast('⏸️ Game placed on Standby Lobby.', 'gold');
         fetchOverview();
@@ -329,7 +370,7 @@ export default function AdminPage() {
 
   async function handleToggleTeamPause(teamId: number, currentlyPaused: boolean) {
     try {
-      const res = await fetch('/api/admin/team/pause', {
+      const res = await adminFetch('/api/admin/team/pause', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId, pause: !currentlyPaused })
@@ -351,7 +392,7 @@ export default function AdminPage() {
 
   async function handleWaivePenalty(teamId: number, violationId: number) {
     try {
-      const res = await fetch('/api/admin/waive-penalty', {
+      const res = await adminFetch('/api/admin/waive-penalty', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId, violationId })
@@ -369,7 +410,7 @@ export default function AdminPage() {
 
   async function handleUnbindDevice(token: string) {
     try {
-      const res = await fetch('/api/admin/unbind-device', {
+      const res = await adminFetch('/api/admin/unbind-device', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token })
@@ -387,7 +428,7 @@ export default function AdminPage() {
   async function handleSkipStage(teamId: number) {
     if (!confirm('Are you sure you want to advance this squad to the next stage?')) return;
     try {
-      const res = await fetch('/api/admin/skip-stage', {
+      const res = await adminFetch('/api/admin/skip-stage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ teamId })
@@ -407,7 +448,7 @@ export default function AdminPage() {
     if (!restartingTeam) return;
     setRestartError('');
     try {
-      const res = await fetch('/api/admin/restart-team', {
+      const res = await adminFetch('/api/admin/restart-team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -443,7 +484,7 @@ export default function AdminPage() {
     }
 
     try {
-      const res = await fetch('/api/admin/wipe-teams', {
+      const res = await adminFetch('/api/admin/wipe-teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -462,7 +503,7 @@ export default function AdminPage() {
 
   async function handleRevealAnswers() {
     try {
-      const res = await fetch('/api/admin/answer-key');
+      const res = await adminFetch('/api/admin/answer-key');
       if (res.ok) {
         const data = await res.json();
         setAnswersData(data);
@@ -480,7 +521,7 @@ export default function AdminPage() {
   async function handleSaveHint(stage: number, n: number) {
     const text = editingHints[`${stage}:${n}`];
     try {
-      const res = await fetch(`/api/admin/hints/${stage}/${n}`, {
+      const res = await adminFetch(`/api/admin/hints/${stage}/${n}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text })
@@ -497,7 +538,7 @@ export default function AdminPage() {
 
   async function handleRevertHint(stage: number, n: number) {
     try {
-      const res = await fetch(`/api/admin/hints/${stage}/${n}/revert`, {
+      const res = await adminFetch(`/api/admin/hints/${stage}/${n}/revert`, {
         method: 'POST'
       });
       if (res.ok) {
@@ -512,7 +553,7 @@ export default function AdminPage() {
 
   async function handleDismissAlert(alertId: string) {
     try {
-      await fetch('/api/admin/alert/dismiss', {
+      await adminFetch('/api/admin/alert/dismiss', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ alertId })
@@ -587,8 +628,9 @@ export default function AdminPage() {
               <Input
                 type="password"
                 value={pin}
+                onChange={(e: any) => setPin(e.target.value)}
                 onInput={(e: any) => setPin(e.target.value)}
-                placeholder="Enter Admin Password"
+                placeholder="Enter Admin Password (e.g. INVICTORS@23)"
                 disabled={lockoutSeconds > 0}
                 autoFocus
               />
