@@ -81,7 +81,7 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
   // Reset input and clear any stale feedback whenever switching stage tab
   useEffect(() => {
     setFeedback(null);
-    setAnswerInput('');
+    setAnswerInput(viewStage === 6 ? 'FO{}' : '');
   }, [viewStage]);
 
   // Support direct autofill events from modules (e.g. Stage 5 hex decoder)
@@ -940,19 +940,41 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                   marginTop: '20px'
                 }}
               >
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    color: 'var(--cyan)',
-                    marginBottom: '8px'
-                  }}
-                >
-                  {currentStageNum === 6
-                    ? 'ENTER MASTER OVERRIDE KEY (STAGE 6):'
-                    : `ENTER MISSION ${currentStageNum} RECOVERED FRAGMENT / OVERRIDE KEY:`}
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: 'var(--cyan)'
+                    }}
+                  >
+                    {currentStageNum === 6
+                      ? 'ENTER MASTER OVERRIDE KEY (STAGE 6 SKELETON: FO{}):'
+                      : `ENTER MISSION ${currentStageNum} RECOVERED FRAGMENT / OVERRIDE KEY:`}
+                  </label>
+                  {currentStageNum === 6 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAnswerInput('FO{}');
+                        if (feedback) setFeedback(null);
+                      }}
+                      style={{
+                        background: 'rgba(39, 180, 255, 0.1)',
+                        border: '1px solid var(--accent)',
+                        color: 'var(--cyan)',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        fontWeight: 700
+                      }}
+                    >
+                      Reset Skeleton FO&#123;&#125;
+                    </button>
+                  )}
+                </div>
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <Input
@@ -963,7 +985,7 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
                     }}
                     placeholder={
                       currentStageNum === 6
-                        ? 'FO{...}#checksum'
+                        ? 'FO{part1-part2-part3-part4-part5}#checksum'
                         : `Enter Stage ${currentStageNum} solution fragment (e.g. ${
                             currentStageNum === 1
                               ? 'Sector Word'
