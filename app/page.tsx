@@ -32,6 +32,8 @@ const OFFICIAL_TEAMS = [
   { num: 21, name: 'Lap legends', set: 'D' },
   { num: 22, name: 'Upside Downers', set: 'D' },
   { num: 23, name: 'beginners', set: 'D' },
+  { num: 24, name: 'Team 24', set: 'D' },
+  { num: 25, name: 'Team 25', set: 'D' },
   { num: 99, name: 'DEMO', set: 'E' }
 ];
 
@@ -41,16 +43,16 @@ function detectAssignedTeam(input: string) {
   if (clean.toUpperCase() === 'DEMO') {
     return { num: 99, name: 'DEMO', set: 'E' };
   }
-  const numMatch = clean.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-3])\b/i) || clean.match(/^0*([1-9]|1[0-9]|2[0-3])$/);
+  const numMatch = clean.match(/(?:team\s*[-_#]?\s*|#\s*)0*([1-9]|1[0-9]|2[0-5])\b/i) || clean.match(/^0*([1-9]|1[0-9]|2[0-5])$/);
   if (numMatch) {
     const num = parseInt(numMatch[1], 10);
     const found = OFFICIAL_TEAMS.find((t) => t.num === num);
     if (found) return found;
-    // Direct range fallback: 1-6 Set A, 7-12 Set B, 13-18 Set C, 19-23 Set D
+    // Direct range fallback: 1-6 Set A, 7-12 Set B, 13-18 Set C, 19-25 Set D
     if (num >= 1 && num <= 6) return { num, name: `Team ${num}`, set: 'A' };
     if (num >= 7 && num <= 12) return { num, name: `Team ${num}`, set: 'B' };
     if (num >= 13 && num <= 18) return { num, name: `Team ${num}`, set: 'C' };
-    if (num >= 19 && num <= 23) return { num, name: `Team ${num}`, set: 'D' };
+    if (num >= 19 && num <= 25) return { num, name: `Team ${num}`, set: 'D' };
   }
   const cleanLower = clean.toLowerCase();
   const direct = OFFICIAL_TEAMS.find((t) => t.name.toLowerCase() === cleanLower);

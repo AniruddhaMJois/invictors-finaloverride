@@ -47,7 +47,7 @@ const DEFAULT_SETS: Record<string, any> = {
     s6: 'FO{72Y-3X8-BYTE9A-NATIT-VEGA}#29'
   },
   D: {
-    setName: 'Set D — Hyperion Vector Delta (Teams 19–23)',
+    setName: 'Set D — Hyperion Vector Delta (Teams 19–25)',
     s1: 'MARS',
     s2: '5P3',
     s2Phrase: 'NEBULA',

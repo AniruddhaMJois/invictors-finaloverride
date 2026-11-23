@@ -504,7 +504,7 @@ export class GameEngine {
           if (assignedTeamNumber >= 1 && assignedTeamNumber <= 6) assignedSetId = 'A';
           else if (assignedTeamNumber >= 7 && assignedTeamNumber <= 12) assignedSetId = 'B';
           else if (assignedTeamNumber >= 13 && assignedTeamNumber <= 18) assignedSetId = 'C';
-          else if (assignedTeamNumber >= 19 && assignedTeamNumber <= 23) assignedSetId = 'D';
+          else if (assignedTeamNumber >= 19 && assignedTeamNumber <= 25) assignedSetId = 'D';
           else {
             const cycle = ['A', 'B', 'C', 'D'];
             assignedSetId = cycle[(assignedTeamNumber - 1) % 4];
@@ -1560,7 +1560,7 @@ export class GameEngine {
           if (num >= 1 && num <= 6) setId = 'A';
           else if (num >= 7 && num <= 12) setId = 'B';
           else if (num >= 13 && num <= 18) setId = 'C';
-          else if (num >= 19 && num <= 23) setId = 'D';
+          else if (num >= 19 && num <= 25) setId = 'D';
           else setId = 'A';
         }
         return {

@@ -1180,7 +1180,7 @@ export default function AdminPage() {
                       onClick={() => setActiveSetTab(s)}
                       style={{ fontSize: '13px', padding: '6px 14px', fontWeight: 700 }}
                     >
-                      Challenge Set {s} {s === 'A' ? '(Teams 01–06)' : s === 'B' ? '(Teams 07–12)' : s === 'C' ? '(Teams 13–18)' : s === 'D' ? '(Teams 19–23)' : '(DEMO Only)'}
+                      Challenge Set {s} {s === 'A' ? '(Teams 01–06)' : s === 'B' ? '(Teams 07–12)' : s === 'C' ? '(Teams 13–18)' : s === 'D' ? '(Teams 19–25)' : '(DEMO Only)'}
                     </Button>
                   ))}
                 </div>
@@ -1231,7 +1231,7 @@ export default function AdminPage() {
                       s6Rule: 'A-Z: 72Y (CTF) + 3X8 (Dec) + BYTE9A (Hex) + NATIT (AI Rev) + VEGA (Sig) | Checksum: 29'
                     },
                     D: {
-                      name: 'Set D — Hyperion Vector Delta (Teams 19–23)',
+                      name: 'Set D — Hyperion Vector Delta (Teams 19–25)',
                       s1: 'MARS',
                       s2: '5P3',
                       s2Phrase: 'NEBULA',

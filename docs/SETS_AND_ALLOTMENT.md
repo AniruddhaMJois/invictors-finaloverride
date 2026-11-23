@@ -2,13 +2,13 @@
 
 > **Event:** FINAL OVERRIDE (Timed Team Escape-Room Style Tech Challenge)  
 > **Host:** Invictors Club, Department of Computer Science & Engineering, VVCE Mysuru  
-> **Venue:** M Block 401 | **Total Registered Squads:** 23 Teams  
+> **Venue:** M Block 401 | **Total Registered Squads:** 25 Teams  
 
 ---
 
 ## 🎯 Executive Overview
 
-To prevent screen-peeking, cross-squad whispering, and collusion across adjacent lab workstations, the 23 registered teams are partitioned into **4 balanced challenge sets (Set A, Set B, Set C, Set D)**. 
+To prevent screen-peeking, cross-squad whispering, and collusion across adjacent lab workstations, the 25 registered teams are partitioned into **4 balanced challenge sets (Set A, Set B, Set C, Set D)**. 
 
 Each set maintains the **exact same cognitive difficulty, round mechanics, and solve time (45–60 mins total)**, but features **unique Morse waveforms, cipher pipelines, AI access keys, CTF station flags, memory hex matrices, and master verification checksums**.
 
@@ -68,7 +68,7 @@ flowchart LR
 ---
 
 ### 🟣 Set D — Hyperion Vector Delta
-*Allotted to 5 Teams (Teams 19 – 23)*
+*Allotted to 7 Teams (Teams 19 – 25)*
 
 | Stage | Mission & Interface | Clue / Encoded Input | Solved Output & Fragment | Notes for Coordinators |
 | :--- | :--- | :--- | :--- | :--- |
@@ -81,7 +81,7 @@ flowchart LR
 
 ---
 
-## 🎲 Team Allotment Mapping (23 Squads across 4 Sets)
+## 🎲 Team Allotment Mapping (25 Squads across 4 Sets)
 
 ### Set A (Teams 01 – 06)
 - **Team 01:** `Trinetra`
@@ -107,12 +107,14 @@ flowchart LR
 - **Team 17:** `Nexora`
 - **Team 18:** `Tech titans`
 
-### Set D (Teams 19 – 23)
+### Set D (Teams 19 – 25)
 - **Team 19:** `The Cosmos`
 - **Team 20:** `THIRD EYE`
 - **Team 21:** `Lap legends`
 - **Team 22:** `Upside Downers`
 - **Team 23:** `beginners`
+- **Team 24:** `Team 24`
+- **Team 25:** `Team 25`
 
 ---
 
