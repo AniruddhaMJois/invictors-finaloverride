@@ -6,6 +6,8 @@ import { showToast } from '@/store';
 
 interface ChannelRow {
   channel: string;
+  seqNumber?: number;
+  seqLabel?: string;
   bytes: string[];
   activeIndex: number;
 }
@@ -13,6 +15,7 @@ interface ChannelRow {
 export const Stage5Module: React.FC = () => {
   const [channels, setChannels] = useState<ChannelRow[]>([]);
   const [activeBusBytes, setActiveBusBytes] = useState<string[]>([]);
+  const [routingOrder, setRoutingOrder] = useState<string[]>([]);
   const [hexInput, setHexInput] = useState<string>('');
   const [decodedText, setDecodedText] = useState<string>('');
   const [breakdown, setBreakdown] = useState<{ hex: string; char: string }[]>([]);
@@ -30,6 +33,9 @@ export const Stage5Module: React.FC = () => {
         if (Array.isArray(data.activeBusBytes)) {
           setActiveBusBytes(data.activeBusBytes);
         }
+        if (Array.isArray(data.routingOrder)) {
+          setRoutingOrder(data.routingOrder);
+        }
       } catch (err) {
         console.error('Stage 5 load error:', err);
       }
@@ -42,7 +48,7 @@ export const Stage5Module: React.FC = () => {
     const busString = activeBusBytes.join(' ');
     setHexInput(busString);
     setDecodeError(null);
-    showToast('Active Bus Line 1 bytes extracted!', 'ok');
+    showToast('Active Column 1 raw bytes extracted!', 'ok');
   }
 
   function handleDecodeHex() {
@@ -88,39 +94,47 @@ export const Stage5Module: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* 1. Header & Directives */}
       <Card>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '24px' }}>🧠</span>
+            <span style={{ fontSize: '26px' }}>🧠</span>
             <div>
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--txt)', margin: 0 }}>
                 Stage 5: Hexadecimal Memory Core & Bus Decoupler
               </h3>
               <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--cyan)' }}>
-                ⚡ High-Voltage Register Matrix
+                ⚡ Multi-Channel High-Voltage Register Matrix
               </span>
             </div>
           </div>
 
-          <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--muted)', margin: 0 }}>
-            📖 The story: The vault’s memory core is pulsing with raw hexadecimal data! 🧠 Six high-frequency channels (A through F) are dumping 4-column registers. The decoupled active high-voltage data bus line runs along Column 1. Decouple it and translate the bytes into ASCII.
-          </p>
+          <div style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <p style={{ margin: 0 }}>
+              📖 <strong>Mission Briefing:</strong> The vault’s memory register core has dumped volatile machine code across 6 parallel hardware channels (<strong>Channel A through F</strong>). A 6-byte cryptographic key fragment is carried inside the high-voltage data bus line (<strong>Column 1</strong>).
+            </p>
+            <p style={{ margin: 0 }}>
+              ⚠️ <strong>Hardware Multiplexing:</strong> To secure the mainframe against memory dumping in this competition, the register bytes along the active column have been <em>scrambled across channels</em>. They do not appear in sequential order from top to bottom!
+            </p>
+          </div>
 
           <div
             style={{
               fontSize: '13px',
-              fontWeight: 600,
+              lineHeight: '1.5',
               color: 'var(--cyan)',
               background: 'rgba(39, 180, 255, 0.08)',
-              padding: '6px 12px',
+              padding: '10px 14px',
               borderRadius: '6px',
-              borderLeft: '3px solid var(--accent)'
+              borderLeft: '3px solid var(--accent)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px'
             }}
           >
-            💡 Tip: Read Column 1 across Channels A through F. Each byte represents an ASCII character in hexadecimal (0x48 &rarr; H).
-          </div>
-
-          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gold)', paddingTop: '2px' }}>
-            ✍️ Decode the active bus line bytes into ASCII text and enter the fragment below.
+            <strong style={{ color: '#fff' }}>🎯 How to Decouple the Core:</strong>
+            <span>1️⃣ Locate the active high-voltage bus line (<strong>Col 1</strong>) across Channels A through F.</span>
+            <span>2️⃣ Follow each channel&apos;s <strong>Bus Sequence tag (Seq #1 → #6)</strong> to read the bytes in their proper transmission order.</span>
+            <span>3️⃣ Use the <strong>Hexadecimal Decoder Workbench</strong> below to translate the 2-digit hex bytes into ASCII characters (e.g. <code>0x41</code> → <code>&apos;A&apos;</code>).</span>
+            <span>4️⃣ Enter the assembled 6-character key fragment into the solution bar below to unlock Stage 6!</span>
           </div>
         </div>
       </Card>
@@ -136,6 +150,40 @@ export const Stage5Module: React.FC = () => {
               </h4>
             </div>
             <span className="badge badge-blue">Channels A–F × 4 Cols</span>
+          </div>
+
+          {/* Routing Order Bar */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              background: 'rgba(6, 18, 38, 0.7)',
+              border: '1px solid var(--line)',
+              fontSize: '12px',
+              fontFamily: 'var(--font-mono)'
+            }}
+          >
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>
+              📡 BUS PACKET ROUTING SEQUENCE:
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span className="badge badge-gold">Seq #1: Ch B</span>
+              <span style={{ color: 'var(--muted)' }}>→</span>
+              <span className="badge badge-gold">Seq #2: Ch D</span>
+              <span style={{ color: 'var(--muted)' }}>→</span>
+              <span className="badge badge-gold">Seq #3: Ch A</span>
+              <span style={{ color: 'var(--muted)' }}>→</span>
+              <span className="badge badge-gold">Seq #4: Ch F</span>
+              <span style={{ color: 'var(--muted)' }}>→</span>
+              <span className="badge badge-gold">Seq #5: Ch C</span>
+              <span style={{ color: 'var(--muted)' }}>→</span>
+              <span className="badge badge-gold">Seq #6: Ch E</span>
+            </div>
           </div>
 
           <div
@@ -157,7 +205,7 @@ export const Stage5Module: React.FC = () => {
             >
               <thead>
                 <tr style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: '11px' }}>
-                  <th style={{ padding: '8px', textAlign: 'left', width: '120px' }}>CHANNEL</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', width: '170px' }}>CHANNEL / BUS SEQ</th>
                   <th style={{ padding: '8px' }}>COL 0</th>
                   <th
                     style={{
@@ -182,12 +230,25 @@ export const Stage5Module: React.FC = () => {
                       style={{
                         padding: '10px 12px',
                         textAlign: 'left',
-                        fontWeight: 700,
-                        color: 'var(--cyan)',
                         background: 'rgba(6, 18, 38, 0.6)'
                       }}
                     >
-                      {row.channel}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--cyan)' }}>{row.channel}</span>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            color: 'var(--gold)',
+                            background: 'rgba(245, 158, 11, 0.15)',
+                            border: '1px solid rgba(245, 158, 11, 0.4)',
+                            padding: '2px 6px',
+                            borderRadius: '4px'
+                          }}
+                        >
+                          {row.seqLabel || `Seq #${row.seqNumber || rIdx + 1}`}
+                        </span>
+                      </div>
                     </td>
                     {row.bytes.map((byte, cIdx) => {
                       const isActive = cIdx === row.activeIndex;
@@ -266,7 +327,7 @@ export const Stage5Module: React.FC = () => {
                   setHexInput(e.target.value);
                   setDecodeError(null);
                 }}
-                placeholder="e.g. 48 45 58 38 32 44"
+                placeholder="e.g. 5A 4F 37 B1 82 9C"
                 style={{
                   fontFamily: 'var(--font-mono)',
                   letterSpacing: '1px',

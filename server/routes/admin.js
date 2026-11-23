@@ -79,12 +79,14 @@ adminRouter.get('/session', requireAdmin, (req, res) => {
 });
 
 // Overview Data
-adminRouter.get('/overview', requireAdmin, (req, res) => {
+adminRouter.get('/overview', requireAdmin, async (req, res) => {
+  await gameEngine.syncAllTeamsFromDb();
   res.json(gameEngine.getAdminOverview());
 });
 
 // Teams Data
-adminRouter.get('/teams', requireAdmin, (req, res) => {
+adminRouter.get('/teams', requireAdmin, async (req, res) => {
+  await gameEngine.syncAllTeamsFromDb();
   res.json({ teams: gameEngine.getAdminTeams() });
 });
 

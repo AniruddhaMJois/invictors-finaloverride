@@ -92,6 +92,12 @@ export class GameEngine {
     }
 
     // 1. Batch load global settings, hints, stage data, alerts, and teams from Supabase in parallel
+    await this.syncAllTeamsFromDb();
+  }
+
+  async syncAllTeamsFromDb() {
+    await this.refreshGlobalSettings();
+
     const [
       alertRows,
       teamRows,
@@ -99,7 +105,8 @@ export class GameEngine {
       progressRows,
       hintUnlockRows,
       violationRows,
-      noteRows
+      noteRows,
+      deviceRows
     ] = await Promise.all([
       db.all("SELECT * FROM alerts WHERE dismissed = FALSE ORDER BY at DESC LIMIT 50"),
       db.all("SELECT * FROM teams"),
@@ -107,7 +114,8 @@ export class GameEngine {
       db.all("SELECT team_id, stage, fragment, solved_at, wrong_attempts FROM progress"),
       db.all("SELECT team_id, stage, n, unlocked_at, expires_at, penalty_seconds FROM hint_unlocks"),
       db.all("SELECT team_id, penalty_seconds FROM violations WHERE waived = FALSE"),
-      db.all("SELECT team_id, text FROM notes")
+      db.all("SELECT team_id, text FROM notes"),
+      db.all("SELECT team_id, token, member_id FROM devices")
     ]);
 
     // Active coordinator alerts from Supabase
@@ -155,6 +163,7 @@ export class GameEngine {
     for (const d of deviceRows) {
       if (!devicesByTeam.has(d.team_id)) devicesByTeam.set(d.team_id, []);
       devicesByTeam.get(d.team_id).push(d.token);
+      this.tokens.set(d.token, { teamId: d.team_id, memberId: d.member_id });
     }
 
     // Hydrate all teams into memory
@@ -1746,7 +1755,11 @@ export class GameEngine {
   }
 
   async getTeamTimeline(teamId) {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
 
     const events = [];
