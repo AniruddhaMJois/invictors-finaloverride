@@ -55,9 +55,9 @@ export class DatabaseManager {
     this.pool = new Pool({
       connectionString: this.pgUrl,
       ssl: { rejectUnauthorized: false },
-      max: 15,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 25000
+      max: 10,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 5000
     });
 
     // Guard against unhandled errors on idle clients
@@ -68,7 +68,7 @@ export class DatabaseManager {
     this.isReady = false;
   }
 
-  async executeWithRetry(fn, maxRetries = 1) {
+  async executeWithRetry(fn, maxRetries = 2) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await fn();
@@ -76,13 +76,16 @@ export class DatabaseManager {
         const isConnErr =
           err.code === 'ECONNRESET' ||
           err.code === 'EPIPE' ||
+          err.code === 'ETIMEDOUT' ||
+          err.code === 'ENETUNREACH' ||
+          err.name === 'AggregateError' ||
           err.message?.includes('Connection terminated') ||
           err.message?.includes('connection closed') ||
-          err.message?.includes('timeout exceeded') ||
+          err.message?.includes('timeout') ||
           err.message?.includes('socket has been ended');
         if (attempt < maxRetries && isConnErr) {
-          console.warn('⚠️ Retrying database query due to connection reset...');
-          await new Promise((r) => setTimeout(r, 100));
+          console.warn(`⚠️ Retrying database query due to connection glitch (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise((r) => setTimeout(r, 120));
           continue;
         }
         throw err;

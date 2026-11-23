@@ -139,7 +139,7 @@ export const GameDashboard: FunctionalComponent<GameDashboardProps> = ({
     const cooldownStart = Date.now();
     const cooldownInterval = setInterval(() => {
       const elapsed = Date.now() - cooldownStart;
-      const progress = 1 - Math.min(1, elapsed / 1000);
+      const progress = 1 - Math.min(1, elapsed / 400);
       submitCooldown.value = progress;
       if (progress <= 0) {
         clearInterval(cooldownInterval);

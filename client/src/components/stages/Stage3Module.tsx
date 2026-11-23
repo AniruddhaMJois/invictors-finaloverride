@@ -225,7 +225,7 @@ export const Stage3Module: React.FC = () => {
       try {
         const res = await fetch('/api/stage/3');
         if (!res.ok) return;
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         if (!mounted) return;
 
         if (Array.isArray(data.chatHistory)) {
@@ -256,7 +256,7 @@ export const Stage3Module: React.FC = () => {
   function startCooldown() {
     setCooldownTime(1);
     const start = Date.now();
-    const duration = 1000;
+    const duration = 400;
 
     if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
 
@@ -291,7 +291,7 @@ export const Stage3Module: React.FC = () => {
         })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const errMsg = data.error || 'Submission rejected.';
         setDirectFeedback({ text: errMsg, isError: true });
@@ -373,7 +373,7 @@ export const Stage3Module: React.FC = () => {
         body: JSON.stringify({ message: text })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       await new Promise((r) => setTimeout(r, 450));
       setIsTyping(false);
 

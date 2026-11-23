@@ -701,11 +701,11 @@ export class GameEngine {
     }
     stage = activeStage;
 
-    // Rate limit: 1s cooldown
+    // Rate limit: 300ms cooldown (reduced from 1000ms to prevent rapid double-clicks)
     const now = Date.now();
     const lastSubmit = this.lastSubmitTime.get(teamId) || 0;
-    if (now - lastSubmit < 1000) {
-      const err = new Error('Rate limit: 1s cooldown between submissions.');
+    if (now - lastSubmit < 300) {
+      const err = new Error('Rate limit: 0.3s cooldown between submissions.');
       err.statusCode = 429;
       throw err;
     }
@@ -713,13 +713,17 @@ export class GameEngine {
 
     const normalized = (rawAnswer || '').trim().replace(/\s+/g, '').toUpperCase();
     
-    // Resolve dynamic answer from Supabase question_sets for the assigned set
+    // Resolve dynamic answer from cached question_sets (falls back to DB or presets)
     const assignedSet = team.setId || 'A';
-    let qSet = null;
-    try {
-      qSet = await db.get('SELECT * FROM public.question_sets WHERE set_id = ?', [assignedSet]);
-    } catch (e) {
-      console.warn('Failed to query question_sets from DB, fallback to STAGE_ANSWERS:', e.message);
+    if (!this.questionSetsCache) this.questionSetsCache = new Map();
+    let qSet = this.questionSetsCache.get(assignedSet);
+    if (!qSet) {
+      try {
+        qSet = await db.get('SELECT * FROM public.question_sets WHERE set_id = ?', [assignedSet]);
+        if (qSet) this.questionSetsCache.set(assignedSet, qSet);
+      } catch (e) {
+        console.warn('Failed to query question_sets from DB, fallback to STAGE_ANSWERS:', e.message);
+      }
     }
 
     const expectedAnswer = qSet ? qSet[`stage${stage}_answer`] : STAGE_ANSWERS[stage];
@@ -1083,27 +1087,15 @@ export class GameEngine {
     const team = this.getTeam(teamId);
     if (!team) throw new Error('Team not found');
 
-    // 1s rate-limit cooldown check
+    // 300ms throttle check (reduced from 1000ms, completely eliminated 40/hr cap)
     const lastTime = this.lastChatTime.get(teamId) || 0;
-    if (now - lastTime < 1000) {
-      const waitSec = ((1000 - (now - lastTime)) / 1000).toFixed(1);
+    if (now - lastTime < 300) {
+      const waitSec = ((300 - (now - lastTime)) / 1000).toFixed(1);
       const err = new Error(`Please wait ${waitSec}s before sending another message.`);
       err.statusCode = 429;
       throw err;
     }
-
-    // 40 messages per rolling hour check
-    let hourly = this.chatHourlyTimestamps.get(teamId) || [];
-    hourly = hourly.filter((ts) => now - ts < 3600000);
-    if (hourly.length >= 40) {
-      const err = new Error('Hourly message limit reached (maximum 40 messages per hour). Think carefully!');
-      err.statusCode = 429;
-      throw err;
-    }
-
     this.lastChatTime.set(teamId, now);
-    hourly.push(now);
-    this.chatHourlyTimestamps.set(teamId, hourly);
 
     // Dynamic WARDEN config based on team assigned set (matches public.question_sets)
     const SET_STAGE3_PRESETS = {
@@ -1120,21 +1112,29 @@ export class GameEngine {
     let secretWord = preset.phrase;
     let targetFragment = preset.answer;
 
-    // Check for correctness in database for fragment code and secret word from database
-    try {
-      const row = await db.get(
-        'SELECT stage2_answer, stage2_phrase, stage3_answer, stage3_phrase FROM question_sets WHERE set_id = ?',
-        [assignedSet]
-      );
-      if (row) {
-        if (row.stage2_answer) fragmentCode = row.stage2_answer.trim();
-        if (row.stage2_phrase || row.stage3_phrase) {
-          secretWord = (row.stage2_phrase || row.stage3_phrase).trim().toUpperCase();
+    // Check for correctness in cached question_sets (falls back to DB or presets)
+    if (!this.questionSetsCache) this.questionSetsCache = new Map();
+    let row = this.questionSetsCache.get(assignedSet);
+    if (!row) {
+      try {
+        row = await db.get(
+          'SELECT stage2_answer, stage2_phrase, stage3_answer, stage3_phrase FROM question_sets WHERE set_id = ?',
+          [assignedSet]
+        );
+        if (row) {
+          this.questionSetsCache.set(assignedSet, row);
         }
-        if (row.stage3_answer) targetFragment = row.stage3_answer.trim().toUpperCase();
+      } catch (dbErr) {
+        console.warn('⚠️ Could not query question_sets table for Stage 3 validation, falling back to preset:', dbErr?.message);
       }
-    } catch (dbErr) {
-      console.warn('⚠️ Could not query question_sets table for Stage 3 validation, falling back to preset:', dbErr?.message);
+    }
+
+    if (row) {
+      if (row.stage2_answer) fragmentCode = row.stage2_answer.trim();
+      if (row.stage2_phrase || row.stage3_phrase) {
+        secretWord = (row.stage2_phrase || row.stage3_phrase).trim().toUpperCase();
+      }
+      if (row.stage3_answer) targetFragment = row.stage3_answer.trim().toUpperCase();
     }
 
     // Evaluate prompt using pure WARDEN Engine (< 5ms)
@@ -1239,13 +1239,18 @@ export class GameEngine {
       E: { 1: '5', 2: '7', 3: 'W' }
     };
     let correctMap = fallbackAnswers[assignedSet] || fallbackAnswers.A;
-    try {
-      const qSet = await db.get('SELECT stage4_stations FROM public.question_sets WHERE set_id = ?', [assignedSet]);
-      if (qSet && qSet.stage4_stations) {
-        correctMap = typeof qSet.stage4_stations === 'string' ? JSON.parse(qSet.stage4_stations) : qSet.stage4_stations;
+    if (!this.questionSetsCache) this.questionSetsCache = new Map();
+    let qSet = this.questionSetsCache.get(assignedSet);
+    if (!qSet) {
+      try {
+        qSet = await db.get('SELECT * FROM public.question_sets WHERE set_id = ?', [assignedSet]);
+        if (qSet) this.questionSetsCache.set(assignedSet, qSet);
+      } catch (e) {
+        console.warn('Failed to query stage4_stations for set:', e.message);
       }
-    } catch (e) {
-      console.warn('Failed to query stage4_stations for set:', e.message);
+    }
+    if (qSet && qSet.stage4_stations) {
+      correctMap = typeof qSet.stage4_stations === 'string' ? JSON.parse(qSet.stage4_stations) : qSet.stage4_stations;
     }
     const isCorrect = val === String(correctMap[n]).toUpperCase();
 
