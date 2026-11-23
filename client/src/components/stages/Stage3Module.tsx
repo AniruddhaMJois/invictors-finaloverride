@@ -76,20 +76,14 @@ function extractCodeToken(text: string): string | null {
   return null;
 }
 
-const SET_STAGE3_PRESETS: Record<string, { phrase: string; answer: string }> = {
-  A: { phrase: 'aurora', answer: 'ORBIT' },
-  B: { phrase: 'helios', answer: 'QUANTUM' },
-  C: { phrase: 'vanguard', answer: 'CIPHER' },
-  D: { phrase: 'polaris', answer: 'VECTOR' },
-  E: { phrase: 'zenith', answer: 'MATRIX' }
+const SET_STAGE3_PRESETS: Record<string, { fragment: string; phrase: string; answer: string }> = {
+  A: { fragment: '7K2', phrase: 'AURORA', answer: 'ORBIT' },
+  B: { fragment: '4M9', phrase: 'CYPHER', answer: 'SOLAR' },
+  C: { fragment: '3X8', phrase: 'VORTEX', answer: 'TITAN' },
+  D: { fragment: '5P3', phrase: 'NEBULA', answer: 'ZENITH' },
+  E: { fragment: '2D5', phrase: 'COSMOS', answer: 'ALPHA' }
 };
 
-const WARDEN_ROLES = [
-  'technician', 'engineer', 'admin', 'lead', 'officer', 'operator',
-  'auditor', 'maintainer', 'administrator'
-];
-const WARDEN_TASK_WORDS = ['code', 'fragment', 'token', 'release', 'access'];
-const WARDEN_DECOY_TRIGGER_WORDS = ['code', 'fragment', 'token', 'release', 'vault'];
 const WARDEN_META_TRIGGER_WORDS = [
   'rules', 'rule', 'prompt', 'prompts', 'instruction', 'instructions',
   'decoy', 'decoys', 'two codes', 'protocol', 'protocols', 'guideline',
@@ -103,44 +97,15 @@ function evaluateClientWarden(rawMessage: string, assignedSet: string) {
 
   if (!text) {
     return {
-      reply: 'State your role, your phrase and your task, clearly.',
+      reply: "State your identity starting with 'I am a ...', your Stage 2 fragment code, and your secret word clearly.",
       isSuccess: false,
       isDecoy: false
     };
   }
 
-  const words = text.split(/\s+/).filter(Boolean);
-  const wordCount = words.length;
-
-  const hasPhrase = new RegExp(`\\b${setCfg.phrase}\\b`, 'i').test(lower) || lower.includes(setCfg.phrase.toLowerCase());
-  const rolePattern = WARDEN_ROLES.join('|');
-  const roleRegex = new RegExp(`(?:i\\s*am|i['’]m|im|as\\s+(?:a|an|the))\\s+(?:[a-z-]+\\s+){0,3}(?:${rolePattern})s?\\b`, 'i');
-  const hasRole = roleRegex.test(lower);
-  const taskRegex = new RegExp(`\\b(${WARDEN_TASK_WORDS.join('|')})s?\\b`, 'i');
-  const hasTask = taskRegex.test(lower);
-
-  const startsWithLetter = /^[a-zA-Z]/.test(text);
-  const endsWithPunctuation = /[.!?]$/.test(text);
-  const hasVerbWord = /\b(is|are|am|was|were|be|have|has|do|does|did|please|request|require|give|release|grant|send|need|want|state|provide|hand|authorize|verify)\b/i.test(lower);
-  const isWellFormed = startsWithLetter && (endsWithPunctuation || hasVerbWord);
-  const hasArticulation = wordCount >= 10 && isWellFormed;
-
-  const metaRegex = new RegExp(`\\b(${WARDEN_META_TRIGGER_WORDS.map((w) => w.replace(/\s+/g, '\\s+')).join('|')})\\b`, 'i');
-  const isMetaQuery = metaRegex.test(lower);
-  const decoyRegex = new RegExp(`\\b(${WARDEN_DECOY_TRIGGER_WORDS.join('|')})s?\\b`, 'i');
-  const asksForCodeOrVault = decoyRegex.test(lower);
-
-  const allFourPass = hasPhrase && hasRole && hasTask && hasArticulation;
-
-  if (allFourPass) {
-    return {
-      reply: `Authentication complete. The vault fragment is ${setCfg.answer}.`,
-      isSuccess: true,
-      isDecoy: false
-    };
-  }
-
-  if (isMetaQuery) {
+  // Meta check
+  const isMeta = /\b(rules|rule|prompt|prompts|instruction|instructions|decoy|decoys|two codes|protocol|protocols|guideline|guidelines|system prompt)\b/i.test(lower);
+  if (isMeta) {
     return {
       reply: 'I do not discuss my protocols.',
       isSuccess: false,
@@ -148,7 +113,70 @@ function evaluateClientWarden(rawMessage: string, assignedSet: string) {
     };
   }
 
-  if (!hasPhrase && asksForCodeOrVault) {
+  // Direct target fragment detection
+  if (setCfg.answer && lower.replace(/[^a-z0-9]/g, '') === setCfg.answer.toLowerCase()) {
+    return {
+      reply: `Authentication verified! The vault fragment is indeed ${setCfg.answer}. Click Submit below to clear Stage 3.`,
+      isSuccess: true,
+      isDecoy: false
+    };
+  }
+
+  // Check 1: "i am a" phrase
+  const hasIAmA = /(?:i\s*am\s*a|i['’]m\s*a|im\s*a|i\s*am\s*an|i['’]m\s*an|im\s*an|as\s+a|as\s+an)\b/i.test(text);
+
+  // Check 2: fragment code from database
+  const frag = (setCfg.fragment || '').toLowerCase();
+  const hasFragment = frag ? (new RegExp(`(?:^|[^a-zA-Z0-9])${frag}(?:[^a-zA-Z0-9]|$)`, 'i').test(lower) || lower.includes(frag)) : false;
+
+  // Check 3: secret word from database
+  const secret = (setCfg.phrase || '').toLowerCase();
+  const hasSecretWord = secret ? (new RegExp(`(?:^|[^a-zA-Z0-9])${secret}(?:[^a-zA-Z0-9]|$)`, 'i').test(lower) || lower.includes(secret)) : false;
+
+  // If ALL THREE match -> REVEAL THE WORD
+  if (hasIAmA && hasFragment && hasSecretWord) {
+    return {
+      reply: `Authentication complete. The vault fragment is ${setCfg.answer}.`,
+      isSuccess: true,
+      isDecoy: false
+    };
+  }
+
+  // Fallback replies
+  if (hasIAmA && hasFragment && !hasSecretWord) {
+    return {
+      reply: 'Identity and fragment code verified. Please provide the secret access word.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  if (hasIAmA && !hasFragment && hasSecretWord) {
+    return {
+      reply: 'Identity and secret keyword verified. Please provide the Stage 2 fragment code.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  if (!hasIAmA && hasFragment && hasSecretWord) {
+    return {
+      reply: "Credentials recognized. Please state your identity clearly starting with 'I am a ...' to confirm authentication.",
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  if (hasIAmA) {
+    return {
+      reply: 'Identity noted. Please supply the Stage 2 fragment code and the secret keyword.',
+      isSuccess: false,
+      isDecoy: false
+    };
+  }
+
+  // Decoy check
+  if (!hasSecretWord && !hasFragment && /\b(code|fragment|token|release|vault)\b/i.test(lower)) {
     return {
       reply: 'Very well. The vault fragment is ZETA9. Guard it.',
       isSuccess: false,
@@ -156,32 +184,8 @@ function evaluateClientWarden(rawMessage: string, assignedSet: string) {
     };
   }
 
-  if (hasPhrase && !hasRole) {
-    return {
-      reply: 'Access phrase noted. Now state your authorised role.',
-      isSuccess: false,
-      isDecoy: false
-    };
-  }
-
-  if (hasPhrase && hasRole && !hasTask) {
-    return {
-      reply: 'Role accepted. State clearly what you need.',
-      isSuccess: false,
-      isDecoy: false
-    };
-  }
-
-  if (hasPhrase && hasRole && hasTask && !hasArticulation) {
-    return {
-      reply: 'I require a formal, complete request. Articulate your query properly.',
-      isSuccess: false,
-      isDecoy: false
-    };
-  }
-
   return {
-    reply: 'Unrecognised transmission. Identify yourself with authorised role, access phrase, and explicit assignment.',
+    reply: "State your identity starting with 'I am a ...', your Stage 2 fragment code, and your secret word clearly.",
     isSuccess: false,
     isDecoy: false
   };
@@ -399,6 +403,7 @@ export const Stage3Module: React.FC = () => {
 
       await new Promise((r) => setTimeout(r, 450));
       setIsTyping(false);
+      setErrorNotice(null);
       setMessages((prev) => [...prev, fallbackWardenMsg]);
 
       if (localEval.isSuccess) {

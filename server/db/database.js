@@ -67,7 +67,7 @@ export class DatabaseManager {
       ssl: { rejectUnauthorized: false },
       max: 15,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      connectionTimeoutMillis: 25000
     });
 
     // Guard against unhandled errors on idle clients
@@ -88,6 +88,7 @@ export class DatabaseManager {
           err.code === 'EPIPE' ||
           err.message?.includes('Connection terminated') ||
           err.message?.includes('connection closed') ||
+          err.message?.includes('timeout exceeded') ||
           err.message?.includes('socket has been ended');
         if (attempt < maxRetries && isConnErr) {
           console.warn('⚠️ Retrying database query due to connection reset...');
@@ -212,6 +213,13 @@ export class DatabaseManager {
     return await this.executeWithRetry(async () => {
       const res = await this.pool.query(pgSql, params);
       return res.rows || [];
+    });
+  }
+
+  async query(sql, params = []) {
+    const pgSql = this.translateSqlToPg(sql);
+    return await this.executeWithRetry(async () => {
+      return await this.pool.query(pgSql, params);
     });
   }
 

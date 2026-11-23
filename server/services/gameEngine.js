@@ -1117,23 +1117,43 @@ export class GameEngine {
     hourly.push(now);
     this.chatHourlyTimestamps.set(teamId, hourly);
 
-    // Dynamic WARDEN config based on team assigned set (instant in-memory lookup)
+    // Dynamic WARDEN config based on team assigned set (matches public.question_sets)
     const SET_STAGE3_PRESETS = {
-      A: { phrase: 'aurora', answer: 'ORBIT' },
-      B: { phrase: 'helios', answer: 'QUANTUM' },
-      C: { phrase: 'vanguard', answer: 'CIPHER' },
-      D: { phrase: 'polaris', answer: 'VECTOR' },
-      E: { phrase: 'zenith', answer: 'MATRIX' }
+      A: { fragment: '7K2', phrase: 'AURORA', answer: 'ORBIT' },
+      B: { fragment: '4M9', phrase: 'CYPHER', answer: 'SOLAR' },
+      C: { fragment: '3X8', phrase: 'VORTEX', answer: 'TITAN' },
+      D: { fragment: '5P3', phrase: 'NEBULA', answer: 'ZENITH' },
+      E: { fragment: '2D5', phrase: 'COSMOS', answer: 'ALPHA' }
     };
 
     const assignedSet = (team.setId || 'A').toUpperCase();
     const preset = SET_STAGE3_PRESETS[assignedSet] || SET_STAGE3_PRESETS.A;
-    const accessPhrase = preset.phrase;
-    const targetFragment = preset.answer;
+    let fragmentCode = preset.fragment;
+    let secretWord = preset.phrase;
+    let targetFragment = preset.answer;
+
+    // Check for correctness in database for fragment code and secret word from database
+    try {
+      const row = await db.get(
+        'SELECT stage2_answer, stage2_phrase, stage3_answer, stage3_phrase FROM question_sets WHERE set_id = ?',
+        [assignedSet]
+      );
+      if (row) {
+        if (row.stage2_answer) fragmentCode = row.stage2_answer.trim();
+        if (row.stage2_phrase || row.stage3_phrase) {
+          secretWord = (row.stage2_phrase || row.stage3_phrase).trim().toUpperCase();
+        }
+        if (row.stage3_answer) targetFragment = row.stage3_answer.trim().toUpperCase();
+      }
+    } catch (dbErr) {
+      console.warn('⚠️ Could not query question_sets table for Stage 3 validation, falling back to preset:', dbErr?.message);
+    }
 
     // Evaluate prompt using pure WARDEN Engine (< 5ms)
     const evalResult = evaluateWardenPrompt(userText, {
-      ACCESS_PHRASE: accessPhrase,
+      FRAGMENT_CODE: fragmentCode,
+      SECRET_WORD: secretWord,
+      ACCESS_PHRASE: secretWord,
       TARGET_FRAGMENT: targetFragment
     });
 
