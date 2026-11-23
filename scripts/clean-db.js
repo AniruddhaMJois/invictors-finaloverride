@@ -54,7 +54,33 @@ async function cleanDatabaseForEvent() {
     console.log(`   ✅ Setting: ${setting.key} = "${setting.value}"`);
   }
 
-  console.log('\n3. Verifying preserved event foundation data...');
+  console.log('\n3. Ensuring Supabase Realtime Publication & RLS Policies...');
+  const realtimeTables = [
+    'settings',
+    'teams',
+    'progress',
+    'violations',
+    'alerts',
+    'notes',
+    'hint_unlocks',
+    'question_sets',
+    'team_allotments',
+    'hints'
+  ];
+
+  for (const t of realtimeTables) {
+    try {
+      await db.run(`ALTER TABLE public.${t} ENABLE ROW LEVEL SECURITY;`);
+      await db.run(`DROP POLICY IF EXISTS "allow_anon_select" ON public.${t};`);
+      await db.run(`CREATE POLICY "allow_anon_select" ON public.${t} FOR SELECT TO anon, authenticated USING (true);`);
+      await db.run(`GRANT SELECT ON public.${t} TO anon, authenticated;`);
+      console.log(`   ✅ Realtime RLS SELECT configured for public.${t}`);
+    } catch (err) {
+      console.warn(`   ⚠️ Notice for public.${t} RLS:`, err.message);
+    }
+  }
+
+  console.log('\n4. Verifying preserved event foundation data...');
   const verifyTables = ['team_allotments', 'question_sets', 'hints', 'teams', 'members', 'settings'];
   for (const table of verifyTables) {
     try {
@@ -66,7 +92,7 @@ async function cleanDatabaseForEvent() {
   }
 
   const settingsRows = await db.all('SELECT key, value FROM public.settings');
-  console.log('\n4. Final Active Settings:', settingsRows);
+  console.log('\n5. Final Active Settings:', settingsRows);
 
   console.log('\n========================================================');
   console.log('🎉 Database is clean and 100% EVENT READY!');
