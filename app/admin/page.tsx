@@ -529,19 +529,26 @@ export default function AdminPage() {
 
   async function handleSaveHint(stage: number, n: number) {
     const text = editingHints[`${stage}:${n}`];
+    if (!text || !text.trim()) {
+      showToast('Hint text cannot be empty', 'bad');
+      return;
+    }
     try {
       const res = await adminFetch(`/api/admin/hints/${stage}/${n}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, setId: selectedHintSet })
+        body: JSON.stringify({ text: text.trim(), setId: selectedHintSet })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast(`Set ${selectedHintSet} Mission ${stage} Hint ${n} saved to database & pushed to players`, 'ok');
-        fetchHints(selectedHintSet);
+        showToast(`✅ Set ${selectedHintSet} Mission ${stage} Hint ${n} saved to Supabase & active players`, 'ok');
+        await fetchHints(selectedHintSet);
         fetchAuditLogs();
+      } else {
+        showToast(data.error || 'Failed to save hint to database', 'bad');
       }
-    } catch {
-      showToast('Failed to save hint', 'bad');
+    } catch (e: any) {
+      showToast(e.message || 'Failed to save hint', 'bad');
     }
   }
 
@@ -552,13 +559,16 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ setId: selectedHintSet })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast(`Set ${selectedHintSet} Mission ${stage} Hint ${n} reverted to default in database`, 'ok');
-        fetchHints(selectedHintSet);
+        showToast(`Set ${selectedHintSet} Mission ${stage} Hint ${n} reverted to default in Supabase`, 'ok');
+        await fetchHints(selectedHintSet);
         fetchAuditLogs();
+      } else {
+        showToast(data.error || 'Failed to revert hint in database', 'bad');
       }
-    } catch {
-      showToast('Failed to revert hint', 'bad');
+    } catch (e: any) {
+      showToast(e.message || 'Failed to revert hint', 'bad');
     }
   }
 
@@ -1485,9 +1495,10 @@ export default function AdminPage() {
                         className="input"
                         rows={4}
                         value={editingHints[`${stageNum}:1`] || ''}
-                        onInput={(e: any) =>
-                          setEditingHints({ ...editingHints, [`${stageNum}:1`]: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingHints((prev) => ({ ...prev, [`${stageNum}:1`]: val }));
+                        }}
                         style={{ width: '100%', resize: 'vertical', fontSize: '12px' }}
                       />
 
@@ -1541,9 +1552,10 @@ export default function AdminPage() {
                         className="input"
                         rows={4}
                         value={editingHints[`${stageNum}:2`] || ''}
-                        onInput={(e: any) =>
-                          setEditingHints({ ...editingHints, [`${stageNum}:2`]: e.target.value })
-                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingHints((prev) => ({ ...prev, [`${stageNum}:2`]: val }));
+                        }}
                         style={{ width: '100%', resize: 'vertical', fontSize: '12px' }}
                       />
 

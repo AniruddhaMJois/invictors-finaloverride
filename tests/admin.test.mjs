@@ -115,12 +115,15 @@ describe('PROMPT 2: Master Admin Portal & Coordinator Portals', () => {
     await gameEngine.updateHint(1, 1, customText, 'MasterAdmin', reg.team.setId);
 
     // Active team state should immediately reflect the updated hint
-    const clientState = gameEngine.getClientTeamState(reg.team.id);
-    assert.equal(clientState.hintsUsed[1][1].text, customText);
+    assert.equal(reg.team.hintsUsed[1][1].text, customText);
 
     // Verify persisted in Database
     const row = await db.get('SELECT text FROM hints WHERE stage = 1 AND n = 1 AND set_id = ?', [reg.team.setId]);
     assert.equal(row.text, customText);
+
+    // Verify live DB hints getter returns the updated text
+    const liveDbHints = await gameEngine.getLiveDbHints(reg.team.setId);
+    assert.equal(liveDbHints[1][1], customText);
 
     // Audit log should record the edit
     const auditLogs = await gameEngine.getAuditLog({ action: 'edit_hint', limit: 5 });

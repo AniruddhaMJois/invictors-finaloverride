@@ -1672,6 +1672,36 @@ export class GameEngine {
     return JSON.parse(JSON.stringify(this.hints));
   }
 
+  async getLiveDbHints(setId = 'A') {
+    const sId = (setId || 'A').toUpperCase();
+    try {
+      const rows = await db.all('SELECT stage, n, text FROM hints WHERE set_id = ? ORDER BY stage, n', [sId]);
+      if (rows && rows.length > 0) {
+        const liveMap = {};
+        for (const r of rows) {
+          const stg = parseInt(r.stage, 10);
+          const num = parseInt(r.n, 10);
+          if (!liveMap[stg]) liveMap[stg] = {};
+          liveMap[stg][num] = r.text;
+        }
+
+        // Keep in-memory cache synchronized with live database
+        if (!this.hints[sId]) this.hints[sId] = {};
+        for (const [stg, levels] of Object.entries(liveMap)) {
+          if (!this.hints[sId][stg]) this.hints[sId][stg] = {};
+          for (const [num, text] of Object.entries(levels)) {
+            this.hints[sId][stg][num] = text;
+          }
+        }
+
+        return liveMap;
+      }
+    } catch (err) {
+      console.warn('⚠️ Could not query live hints from DB, using memory:', err.message);
+    }
+    return this.getHints(sId);
+  }
+
   async updateHint(stage, n, text, actor = 'Admin', setId = 'A') {
     const stg = parseInt(stage, 10);
     const num = parseInt(n, 10);
@@ -1683,16 +1713,19 @@ export class GameEngine {
     if (!this.hints[sId][stg]) this.hints[sId][stg] = {};
     this.hints[sId][stg][num] = cleanText;
 
-    await db.run('INSERT OR REPLACE INTO hints (set_id, stage, n, text) VALUES (?, ?, ?, ?)', [
-      sId,
-      stg,
-      num,
-      cleanText
-    ]);
+    // 1. Persist directly to Supabase PostgreSQL table 'hints'
+    await db.run(
+      'INSERT INTO hints (set_id, stage, n, text) VALUES (?, ?, ?, ?) ON CONFLICT (set_id, stage, n) DO UPDATE SET text = EXCLUDED.text',
+      [sId, stg, num, cleanText]
+    );
+
+    // 2. Synchronize via Supabase REST API as dual-write reliability layer
     await supabaseSync.syncHintUpdate(stg, num, cleanText, sId);
+
+    // 3. Record permanent security audit log in Supabase
     await this.logAudit(actor, 'edit_hint', { set_id: sId, stage: stg, n: num, textLength: cleanText.length });
 
-    // Update active teams playing this stage and this set who unlocked this hint
+    // 4. Update active teams playing this stage and this set who unlocked this hint
     for (const team of this.teams.values()) {
       const teamSet = (team.setId || 'A').toUpperCase();
       if (teamSet === sId && team.hintsUsed[stg]?.[num]) {
@@ -1715,13 +1748,16 @@ export class GameEngine {
     if (!this.hints[sId][stg]) this.hints[sId][stg] = {};
     this.hints[sId][stg][num] = original;
 
-    await db.run('INSERT OR REPLACE INTO hints (set_id, stage, n, text) VALUES (?, ?, ?, ?)', [
-      sId,
-      stg,
-      num,
-      original
-    ]);
+    // 1. Revert directly in Supabase PostgreSQL table 'hints'
+    await db.run(
+      'INSERT INTO hints (set_id, stage, n, text) VALUES (?, ?, ?, ?) ON CONFLICT (set_id, stage, n) DO UPDATE SET text = EXCLUDED.text',
+      [sId, stg, num, original]
+    );
+
+    // 2. Synchronize via Supabase REST API
     await supabaseSync.syncHintUpdate(stg, num, original, sId);
+
+    // 3. Record audit log
     await this.logAudit(actor, 'revert_hint', { set_id: sId, stage: stg, n: num });
 
     for (const team of this.teams.values()) {

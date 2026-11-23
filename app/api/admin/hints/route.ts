@@ -15,8 +15,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const setParam = url.searchParams.get('set');
   const sId = (setParam || 'A').toUpperCase();
+
+  // Always query fresh, ground-truth hints directly from Supabase PostgreSQL
+  const liveHints = await gameEngine.getLiveDbHints(sId);
+
   return NextResponse.json({
-    hints: gameEngine.getHints(sId),
+    success: true,
+    hints: liveHints,
     allHints: gameEngine.getAllHints(),
     currentSet: sId
   });

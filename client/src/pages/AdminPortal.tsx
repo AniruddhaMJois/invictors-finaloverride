@@ -16,6 +16,7 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [hints, setHints] = useState<Record<number, Record<number, string>>>({});
   const [editingHints, setEditingHints] = useState<Record<string, string>>({});
+  const [selectedHintSet, setSelectedHintSet] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [teamTimeline, setTeamTimeline] = useState<any>(null);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
@@ -95,9 +96,9 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
     } catch (e) {}
   }
 
-  async function fetchHints() {
+  async function fetchHints(set = selectedHintSet) {
     try {
-      const res = await fetch('/api/admin/hints');
+      const res = await fetch(`/api/admin/hints?set=${set}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setHints(data.hints || {});
@@ -321,34 +322,48 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
 
   async function handleSaveHint(stage: number, n: number) {
     const text = editingHints[`${stage}:${n}`];
+    if (!text || !text.trim()) {
+      showToast('Hint text cannot be empty', 'bad');
+      return;
+    }
     try {
       const res = await fetch(`/api/admin/hints/${stage}/${n}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        credentials: 'include',
+        body: JSON.stringify({ text: text.trim(), setId: selectedHintSet })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast(`Stage ${stage} Hint ${n} saved and pushed to players`, 'ok');
-        fetchHints();
+        showToast(`✅ Set ${selectedHintSet} Mission ${stage} Hint ${n} saved to Supabase & players`, 'ok');
+        await fetchHints(selectedHintSet);
         fetchAuditLogs();
+      } else {
+        showToast(data.error || 'Failed to save hint to database', 'bad');
       }
-    } catch (e) {
-      showToast('Failed to save hint', 'bad');
+    } catch (e: any) {
+      showToast(e.message || 'Failed to save hint', 'bad');
     }
   }
 
   async function handleRevertHint(stage: number, n: number) {
     try {
       const res = await fetch(`/api/admin/hints/${stage}/${n}/revert`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ setId: selectedHintSet })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast(`Stage ${stage} Hint ${n} reverted to default`, 'ok');
-        fetchHints();
+        showToast(`Set ${selectedHintSet} Mission ${stage} Hint ${n} reverted to default in Supabase`, 'ok');
+        await fetchHints(selectedHintSet);
         fetchAuditLogs();
+      } else {
+        showToast(data.error || 'Failed to revert hint in database', 'bad');
       }
-    } catch (e) {
-      showToast('Failed to revert hint', 'bad');
+    } catch (e: any) {
+      showToast(e.message || 'Failed to revert hint', 'bad');
     }
   }
 
@@ -962,6 +977,45 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
               <p style={{ color: 'var(--muted)', fontSize: '13px' }}>
                 Edits take effect immediately for active squads on that stage and persist across server restarts.
               </p>
+            </div>
+
+            {/* Set Selection Tabs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)' }}>
+                📁 Select Target Question Set ({selectedHintSet}):
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { id: 'A', name: 'Set A: Cosmic Vault Alpha' },
+                  { id: 'B', name: 'Set B: Cyber Nexus Beta' },
+                  { id: 'C', name: 'Set C: Quantum Matrix Gamma' },
+                  { id: 'D', name: 'Set D: Hyperion Vector Delta' },
+                  { id: 'E', name: 'Set E: Demo Simulation Epsilon' }
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setSelectedHintSet(s.id as any);
+                      fetchHints(s.id as any);
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      background: selectedHintSet === s.id ? 'var(--accent)' : 'var(--bg)',
+                      color: selectedHintSet === s.id ? '#000' : 'var(--txt)',
+                      border: selectedHintSet === s.id ? '1px solid var(--accent)' : '1px solid var(--line)',
+                      boxShadow: selectedHintSet === s.id ? '0 0 12px rgba(255, 184, 0, 0.35)' : 'none',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

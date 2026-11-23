@@ -263,12 +263,24 @@ export const supabaseSync = {
   async syncHintUpdate(stage, n, text, setId = 'A') {
     if (!this.isConfigured()) return;
     try {
-      await supabase.from('hints').upsert({
-        set_id: (setId || 'A').toUpperCase(),
-        stage,
-        n,
-        text
-      });
+      const sId = (setId || 'A').toUpperCase();
+      const stg = parseInt(stage, 10);
+      const num = parseInt(n, 10);
+      const cleanText = (text || '').trim();
+      const { error } = await supabase.from('hints').upsert(
+        {
+          set_id: sId,
+          stage: stg,
+          n: num,
+          text: cleanText
+        },
+        { onConflict: 'set_id,stage,n' }
+      );
+      if (error) {
+        console.warn('⚠️ Supabase REST syncHintUpdate warning:', error.message);
+      } else {
+        console.log(`⚡ Supabase REST syncHintUpdate: Set ${sId} Mission ${stg} Hint ${num} synced successfully`);
+      }
     } catch (err) {
       console.warn('⚠️ Supabase syncHintUpdate error:', err.message);
     }

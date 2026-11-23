@@ -21,7 +21,11 @@ export async function PUT(
     const body = await request.json();
     const url = new URL(request.url);
     const sId = (body.setId || url.searchParams.get('set') || 'A').toUpperCase();
-    const hints = await gameEngine.updateHint(stage, n, body.text, 'Admin', sId);
+    const text = body.text;
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return NextResponse.json({ error: 'Hint text cannot be empty.' }, { status: 400 });
+    }
+    const hints = await gameEngine.updateHint(stage, n, text.trim(), 'Admin', sId);
     return NextResponse.json({ success: true, hints, setId: sId });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 400 });
