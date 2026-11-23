@@ -1340,7 +1340,11 @@ export class GameEngine {
   }
 
   async toggleTeamPause(teamId, pauseState, actor = 'Admin') {
-    const team = this.getTeam(teamId);
+    let team = this.getTeam(teamId);
+    if (!team) {
+      await this.loadTeamFromDb(teamId);
+      team = this.getTeam(teamId);
+    }
     if (!team) throw new Error('Team not found');
     if (team.isCompleted) throw new Error('Team has already completed the game.');
 
@@ -1351,25 +1355,38 @@ export class GameEngine {
       team.isPaused = true;
       team.pausedAt = now;
       await db.run('UPDATE teams SET is_paused = TRUE, paused_at = ? WHERE id = ?', [now, teamId]);
-      await supabaseSync.syncTeamPause(teamId, true, now, team.pausedAccumMs);
-      await this.logAudit(actor, 'team_pause', { teamId, teamName: team.teamName });
+      try {
+        await supabaseSync.syncTeamPause(teamId, true, now, team.pausedAccumMs);
+      } catch (e) {
+        console.warn('syncTeamPause error:', e.message);
+      }
+      this.logAudit(actor, 'team_pause', { teamId, teamName: team.teamName }).catch(() => {});
     } else if (!shouldPause && team.isPaused) {
       team.isPaused = false;
-      const duration = team.pausedAt ? now - team.pausedAt : 0;
+      const duration = team.pausedAt ? Math.max(0, now - team.pausedAt) : 0;
       team.pausedAccumMs = (team.pausedAccumMs || 0) + duration;
       team.pausedAt = 0;
       await db.run('UPDATE teams SET is_paused = FALSE, paused_at = 0, paused_accum_ms = ? WHERE id = ?', [
         team.pausedAccumMs,
         teamId
       ]);
-      await supabaseSync.syncTeamPause(teamId, false, 0, team.pausedAccumMs);
-      await this.logAudit(actor, 'team_resume', { teamId, teamName: team.teamName, durationMs: duration });
+      try {
+        await supabaseSync.syncTeamPause(teamId, false, 0, team.pausedAccumMs);
+      } catch (e) {
+        console.warn('syncTeamPause error:', e.message);
+      }
+      this.logAudit(actor, 'team_resume', { teamId, teamName: team.teamName, durationMs: duration }).catch(() => {});
     }
 
     this.broadcastTeamState(teamId);
     this.broadcastLeaderboard();
     this.broadcastAdminUpdate();
-    return { success: true, isPaused: team.isPaused };
+    return {
+      success: true,
+      isPaused: team.isPaused,
+      pausedAt: team.pausedAt,
+      pausedAccumMs: team.pausedAccumMs
+    };
   }
 
   getEffectiveElapsedSeconds(team) {
@@ -1434,6 +1451,10 @@ export class GameEngine {
       clockOffsetMs: 0,
       isPaused: this.globalPaused,
       isTeamPaused: Boolean(team.isPaused),
+      pausedAt: team.pausedAt ? Number(team.pausedAt) : 0,
+      pausedAccumMs: team.pausedAccumMs ? Number(team.pausedAccumMs) : 0,
+      globalPausedAt: this.globalPausedAt ? Number(this.globalPausedAt) : 0,
+      globalPausedAccumMs: this.globalPausedAccumMs ? Number(this.globalPausedAccumMs) : 0,
       gameStarted: this.gameStarted,
       totalPenaltySeconds: team.totalPenaltySeconds,
       penaltyBreakdown: team.penaltyBreakdown,

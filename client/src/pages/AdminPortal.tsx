@@ -191,14 +191,20 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
   }
 
   async function handleToggleTeamPause(teamId: number, currentlyPaused: boolean) {
+    const nextState = !currentlyPaused;
+    // Optimistic UI state update
+    setTeams((prev) =>
+      prev.map((tm) => (tm.id === teamId ? { ...tm, isPaused: nextState, status: nextState ? 'paused' : 'in_progress' } : tm))
+    );
+
     try {
       const res = await fetch('/api/admin/team/pause', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId, pause: !currentlyPaused })
+        body: JSON.stringify({ teamId, pause: nextState })
       });
       if (res.ok) {
-        showToast(`Squad ${!currentlyPaused ? 'Paused ⏸' : 'Resumed ▶'}`, 'gold');
+        showToast(`Squad ${nextState ? 'Paused ⏸' : 'Resumed ▶'}`, 'gold');
         fetchTeams();
         if (selectedTeamId === teamId) {
           loadTeamTimeline(teamId);
@@ -206,9 +212,11 @@ export const AdminPortal: FunctionalComponent<AdminPortalProps> = ({ onLogout, o
       } else {
         const err = await res.json();
         showToast(err.error || 'Failed to update squad pause.', 'bad');
+        fetchTeams();
       }
     } catch (e: any) {
       showToast(e.message || 'Network error.', 'bad');
+      fetchTeams();
     }
   }
 

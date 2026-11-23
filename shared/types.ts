@@ -97,6 +97,10 @@ export interface TeamState {
   clockOffsetMs: number;
   isPaused: boolean;
   isTeamPaused?: boolean;
+  pausedAt?: number;
+  pausedAccumMs?: number;
+  globalPausedAt?: number;
+  globalPausedAccumMs?: number;
   gameStarted?: boolean;
   totalPenaltySeconds: number;
   penaltyBreakdown: {

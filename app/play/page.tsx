@@ -142,7 +142,9 @@ export default function GameDashboardPage() {
             teamState.value = {
               ...teamState.value!,
               isPaused: Boolean(rec.is_paused),
-              isTeamPaused: Boolean(rec.is_paused)
+              isTeamPaused: Boolean(rec.is_paused),
+              pausedAt: rec.paused_at ? Number(rec.paused_at) : 0,
+              pausedAccumMs: rec.paused_accum_ms ? Number(rec.paused_accum_ms) : 0
             };
           }
           syncFreshState();

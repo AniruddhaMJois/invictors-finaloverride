@@ -8,14 +8,56 @@ export function useAuthoritativeTimer(
   ringCircleRef?: { current: SVGCircleElement | null }
 ) {
   useEffect(() => {
+    let lastElapsedSec = 0;
+
     const interval = setInterval(() => {
       const state = teamState.value;
       if (!state || !state.startTime || !textNodeRef.current) return;
 
       const offset = serverClockOffset.value;
-      const now = state.endTime || (isGlobalPaused.value ? state.serverNow : Date.now() + offset);
-      const elapsedMs = Math.max(0, now - state.startTime);
-      const totalElapsedSec = Math.floor(elapsedMs / 1000);
+      const isTeamPaused = Boolean(state.isTeamPaused);
+      const isPaused = Boolean(isGlobalPaused.value || isTeamPaused || state.isPaused);
+      const currentNow = state.endTime ? state.endTime : (Date.now() + offset);
+
+      let totalElapsedSec = 0;
+
+      if (isPaused && !state.endTime) {
+        // Paused state: calculate frozen elapsed time exactly matching gameEngine
+        const totalGlobalPausedMs =
+          (state.globalPausedAccumMs || 0) +
+          (isGlobalPaused.value && state.globalPausedAt
+            ? Math.max(0, currentNow - state.globalPausedAt)
+            : 0);
+
+        const totalTeamPausedMs =
+          (state.pausedAccumMs || 0) +
+          (isTeamPaused && state.pausedAt
+            ? Math.max(0, currentNow - state.pausedAt)
+            : 0);
+
+        const totalPausedMs = totalGlobalPausedMs + totalTeamPausedMs;
+
+        if (totalPausedMs > 0) {
+          const elapsedMs = Math.max(0, currentNow - state.startTime - totalPausedMs);
+          totalElapsedSec = Math.floor(elapsedMs / 1000);
+        } else if (lastElapsedSec > 0) {
+          // If paused timestamps are syncing, freeze at last elapsed second
+          totalElapsedSec = lastElapsedSec;
+        } else {
+          const elapsedMs = Math.max(0, (state.serverNow || currentNow) - state.startTime);
+          totalElapsedSec = Math.floor(elapsedMs / 1000);
+        }
+      } else {
+        // Running or completed state
+        const totalGlobalPausedMs = state.globalPausedAccumMs || 0;
+        const totalTeamPausedMs = state.pausedAccumMs || 0;
+        const totalPausedMs = totalGlobalPausedMs + totalTeamPausedMs;
+
+        const elapsedMs = Math.max(0, currentNow - state.startTime - totalPausedMs);
+        totalElapsedSec = Math.floor(elapsedMs / 1000);
+      }
+
+      lastElapsedSec = totalElapsedSec;
 
       const mins = Math.floor(totalElapsedSec / 60);
       const secs = totalElapsedSec % 60;
@@ -36,7 +78,10 @@ export function useAuthoritativeTimer(
         const circumference = 2 * Math.PI * 22; // r=22
         ringCircleRef.current.style.strokeDashoffset = String(circumference * (1 - fraction));
 
-        if (remaining <= 120) {
+        if (isPaused) {
+          ringCircleRef.current.style.stroke = 'var(--gold)';
+          textNodeRef.current.style.color = 'var(--gold)';
+        } else if (remaining <= 120) {
           // Last 2 mins: red pulse
           ringCircleRef.current.style.stroke = 'var(--bad)';
           textNodeRef.current.style.color = 'var(--bad)';
@@ -48,6 +93,8 @@ export function useAuthoritativeTimer(
           ringCircleRef.current.style.stroke = 'var(--accent)';
           textNodeRef.current.style.color = 'var(--txt)';
         }
+      } else if (isPaused) {
+        textNodeRef.current.style.color = 'var(--gold)';
       }
     }, 250);
 
