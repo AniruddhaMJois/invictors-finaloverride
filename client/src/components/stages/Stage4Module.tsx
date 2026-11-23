@@ -1,7 +1,8 @@
-import { FunctionalComponent } from 'preact';
-import { useState, useEffect, useRef } from 'preact/hooks';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { Card, Button, Input } from '../common/UI';
-import { showToast, wsManager, useSignal, teamState } from '../../store';
+import { showToast, wsManager, useSignal, teamState } from '@/store';
 
 interface LogRow {
   time: string;
@@ -95,7 +96,6 @@ const SET_STATION_CONFIG: Record<
   }
 };
 
-// Crisp Vector SVG Shape Renderer for Legend & Keypad
 const ShapeSVG = ({ shape, size = 24, glow = false, color = 'var(--cyan)' }: { shape: string; size?: number; glow?: boolean; color?: string }) => {
   const style = glow
     ? { filter: `drop-shadow(0 0 8px ${color})`, stroke: color, color }
@@ -143,7 +143,130 @@ const ShapeSVG = ({ shape, size = 24, glow = false, color = 'var(--cyan)' }: { s
   }
 };
 
-export const Stage4Module: FunctionalComponent = () => {
+const CameraFeedCanvas: React.FC<{
+  assignedSet: string;
+  brightness: number;
+  contrast: number;
+}> = ({ assignedSet, brightness, contrast }) => {
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [blink, setBlink] = useState(true);
+
+  useEffect(() => {
+    const timer = setInterval(() => setBlink((b) => !b), 800);
+    return () => clearInterval(timer);
+  }, []);
+
+  const setDigits: Record<string, string> = {
+    A: '1',
+    B: '4',
+    C: '2',
+    D: '3',
+    E: '7'
+  };
+  const digit = setDigits[assignedSet] || '1';
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = 640;
+    const height = 360;
+
+    // 1. Deep surveillance room dark background
+    ctx.fillStyle = '#08142c';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Surveillance grid & corner crosshairs
+    ctx.strokeStyle = '#0d2042';
+    ctx.lineWidth = 1;
+
+    const drawCross = (x: number, y: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x - 12, y);
+      ctx.lineTo(x + 12, y);
+      ctx.moveTo(x, y - 12);
+      ctx.lineTo(x, y + 12);
+      ctx.stroke();
+    };
+    drawCross(40, 40);
+    drawCross(width - 40, 40);
+    drawCross(40, height - 40);
+    drawCross(width - 40, height - 40);
+
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(60, 40);
+    ctx.lineTo(width - 60, 40);
+    ctx.moveTo(60, height - 40);
+    ctx.lineTo(width - 60, height - 40);
+    ctx.moveTo(40, 60);
+    ctx.lineTo(40, height - 60);
+    ctx.moveTo(width - 40, 60);
+    ctx.lineTo(width - 40, height - 60);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 3. Center targeting reticle
+    const cx = width / 2;
+    const cy = height / 2;
+    ctx.strokeStyle = '#102850';
+    ctx.strokeRect(cx - 170, cy - 45, 340, 90);
+
+    // 4. Hidden access digit in center
+    // Drawn in dark tone #0f2347 (RGB 15, 35, 71) on #08142c
+    // Invisible at 1.0x, clearly reveals as brightness is increased
+    ctx.fillStyle = '#0f2347';
+    ctx.font = 'bold 36px "Courier New", Courier, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`ACCESS DIGIT: ${digit}`, cx, cy);
+
+    // 5. Camera metadata overlay
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = '#2d537e';
+    ctx.font = 'bold 12px "Courier New", Courier, monospace';
+    ctx.fillText('CAM-04 · SECTOR 4 GATEWAY', 36, 26);
+
+    // Blinking REC dot
+    ctx.fillStyle = blink ? '#ff3b3b' : '#7a1b1b';
+    ctx.beginPath();
+    ctx.arc(width - 135, 20, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#a0b4cc';
+    ctx.font = 'bold 12px "Courier New", Courier, monospace';
+    ctx.fillText('REC 08:34:12', width - 122, 24);
+
+    ctx.fillStyle = '#3a6699';
+    ctx.font = '11px "Courier New", Courier, monospace';
+    ctx.fillText('CHANNEL: ZETA-9 · 1080P IR_NIGHT_VISION', 36, height - 16);
+
+    ctx.textAlign = 'right';
+    ctx.fillText(`CH-04 // SET ${assignedSet}`, width - 36, height - 16);
+  }, [assignedSet, digit, blink]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={640}
+      height={360}
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'block',
+        objectFit: 'cover',
+        filter: `brightness(${brightness}) contrast(${contrast})`,
+        transition: 'filter 0.05s linear'
+      }}
+    />
+  );
+};
+
+export const Stage4Module: React.FC = () => {
   const state = useSignal(teamState);
   const assignedSet = (((state as any)?.setId || 'A') as string).toUpperCase();
   const setCfg = SET_STATION_CONFIG[assignedSet] || SET_STATION_CONFIG.A;
@@ -193,7 +316,7 @@ export const Stage4Module: FunctionalComponent = () => {
 
   const combinedCandidate = `${s1Input || ''}${s2Input || ''}${s3Input || ''}`.trim().toUpperCase();
 
-  async function handleStage4Submit(e?: any, customAns?: string) {
+  async function handleStage4Submit(e?: React.FormEvent, customAns?: string) {
     if (e && e.preventDefault) e.preventDefault();
     const ans = (customAns || stage4Input || combinedCandidate).trim().toUpperCase();
     if (!ans || isSubmittingStage4) return;
@@ -282,7 +405,6 @@ export const Stage4Module: FunctionalComponent = () => {
 
     loadStage4();
 
-    // Listen to WebSocket broadcasts for cross-device station solves
     const unsubscribe = wsManager.on('stage4:station_solved', (msg: any) => {
       if (Array.isArray(msg.solvedStations)) {
         setSolvedStations(msg.solvedStations);
@@ -296,9 +418,8 @@ export const Stage4Module: FunctionalComponent = () => {
     };
   }, [assignedSet]);
 
-  // Submit individual station check
   async function checkStation(stationNum: number, value: string) {
-    const val = (value || '').trim().toUpperCase();
+    const val = value.trim().toUpperCase();
     if (!val) return;
 
     if (stationNum === 1) {
@@ -360,7 +481,26 @@ export const Stage4Module: FunctionalComponent = () => {
   const isS2Solved = solvedStations.includes(2);
   const isS3Solved = solvedStations.includes(3);
 
-  // Camera contrast formula
+  // Auto-sync solved characters and broadcast candidate key to bottom answer bar
+  useEffect(() => {
+    if (isS1Solved && !s1Input) setS1Input(setCfg.s1Clearance.replace(/^L/i, ''));
+    if (isS2Solved && !s2Input) {
+      const d = assignedSet === 'A' ? '1' : assignedSet === 'B' ? '4' : assignedSet === 'C' ? '2' : assignedSet === 'D' ? '3' : '7';
+      setS2Input(d);
+    }
+    if (isS3Solved && !s3Input) {
+      const ch = setCfg.activeSymbol === 'triangle' ? 'X' : setCfg.activeSymbol === 'star' ? 'Z' : setCfg.activeSymbol === 'diamond' ? 'Y' : setCfg.activeSymbol === 'square' ? 'K' : 'W';
+      setS3Input(ch);
+    }
+    if (isS1Solved && isS2Solved && isS3Solved) {
+      const s1 = s1Input || setCfg.s1Clearance.replace(/^L/i, '');
+      const s2 = s2Input || (assignedSet === 'A' ? '1' : assignedSet === 'B' ? '4' : assignedSet === 'C' ? '2' : assignedSet === 'D' ? '3' : '7');
+      const s3 = s3Input || (setCfg.activeSymbol === 'triangle' ? 'X' : setCfg.activeSymbol === 'star' ? 'Z' : setCfg.activeSymbol === 'diamond' ? 'Y' : setCfg.activeSymbol === 'square' ? 'K' : 'W');
+      const key = `${s1}${s2}${s3}`;
+      window.dispatchEvent(new CustomEvent('fo:set-answer', { detail: key }));
+    }
+  }, [isS1Solved, isS2Solved, isS3Solved, s1Input, s2Input, s3Input, assignedSet, setCfg]);
+
   const contrast = 1 + (brightness - 1) * 0.8;
 
   return (
@@ -547,7 +687,7 @@ export const Stage4Module: FunctionalComponent = () => {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Input
                     value={s1Input}
-                    onInput={(e: any) => setS1Input(e.target.value.slice(0, 1))}
+                    onChange={(e) => setS1Input(e.target.value.slice(0, 1))}
                     placeholder="Digit"
                     maxLength={1}
                     style={{ width: '80px', textAlign: 'center', fontWeight: 800, fontSize: '16px' }}
@@ -614,20 +754,10 @@ export const Stage4Module: FunctionalComponent = () => {
                 aspectRatio: '16/9'
               }}
             >
-              <img
-                src={`/assets/stage4/camera_${assignedSet}.png`}
-                alt="Camera 4 surveillance feed"
-                onError={(e: any) => {
-                  e.currentTarget.src = `/api/stage/4/camera.png?set=${assignedSet}`;
-                }}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: 'block',
-                  filter: `brightness(${brightness}) contrast(${contrast})`,
-                  transition: 'filter 0.05s linear'
-                }}
+              <CameraFeedCanvas
+                assignedSet={assignedSet}
+                brightness={brightness}
+                contrast={1 + (brightness - 1) * 0.25}
               />
 
               {/* Animated Surveillance Scanning Line */}
@@ -648,17 +778,35 @@ export const Stage4Module: FunctionalComponent = () => {
 
             {/* Brightness Slider */}
             <div style={{ marginBottom: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--muted)', marginBottom: '4px' }}>
                 <span>CAMERA BRIGHTNESS</span>
-                <span style={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>{brightness.toFixed(1)}x</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => setBrightness(brightness >= 5 ? 1 : 6)}
+                    style={{
+                      background: 'rgba(39, 180, 255, 0.15)',
+                      border: '1px solid var(--accent)',
+                      color: 'var(--cyan)',
+                      borderRadius: '4px',
+                      padding: '2px 8px',
+                      fontSize: '10px',
+                      cursor: 'pointer',
+                      fontWeight: 700
+                    }}
+                  >
+                    {brightness >= 5 ? '↺ Reset (1.0x)' : '💡 Boost Brightness (6.0x)'}
+                  </button>
+                  <span style={{ color: 'var(--cyan)', fontFamily: 'var(--font-mono)' }}>{brightness.toFixed(1)}x</span>
+                </div>
               </div>
               <input
                 type="range"
                 min="1"
-                max="6"
+                max="8"
                 step="0.1"
                 value={brightness}
-                onInput={(e: any) => setBrightness(parseFloat(e.target.value))}
+                onChange={(e) => setBrightness(parseFloat(e.target.value))}
                 style={{
                   width: '100%',
                   accentColor: 'var(--accent)',
@@ -680,7 +828,7 @@ export const Stage4Module: FunctionalComponent = () => {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Input
                     value={s2Input}
-                    onInput={(e: any) => setS2Input(e.target.value.slice(0, 1))}
+                    onChange={(e) => setS2Input(e.target.value.slice(0, 1))}
                     placeholder="Digit"
                     maxLength={1}
                     style={{ width: '80px', textAlign: 'center', fontWeight: 800, fontSize: '16px' }}
@@ -801,7 +949,7 @@ export const Stage4Module: FunctionalComponent = () => {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Input
                     value={s3Input}
-                    onInput={(e: any) => setS3Input(e.target.value.slice(0, 1).toUpperCase())}
+                    onChange={(e) => setS3Input(e.target.value.slice(0, 1).toUpperCase())}
                     placeholder="Letter"
                     maxLength={1}
                     style={{ width: '80px', textAlign: 'center', fontWeight: 800, fontSize: '16px' }}
@@ -881,12 +1029,12 @@ export const Stage4Module: FunctionalComponent = () => {
             }}
           >
             <form
-              onSubmit={(e: any) => handleStage4Submit(e)}
+              onSubmit={(e) => handleStage4Submit(e)}
               style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}
             >
               <Input
                 value={stage4Input}
-                onInput={(e: any) => {
+                onChange={(e) => {
                   setStage4Input(e.target.value.toUpperCase());
                   if (stage4Feedback) setStage4Feedback(null);
                 }}

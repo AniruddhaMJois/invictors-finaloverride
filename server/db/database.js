@@ -149,6 +149,17 @@ export class DatabaseManager {
   async init() {
     if (this.isReady) return;
 
+    try {
+      // Fast path for serverless: If public.settings already exists, skip running 15 heavy sequential DDL queries
+      const quickCheck = await this.pool.query("SELECT 1 FROM public.settings LIMIT 1");
+      if (quickCheck && quickCheck.rows) {
+        this.isReady = true;
+        return;
+      }
+    } catch (e) {
+      // Table doesn't exist yet, proceed to full initialization
+    }
+
     // PostgreSQL Schema Initialization in Supabase
     await this.run(`
       CREATE TABLE IF NOT EXISTS public.teams (

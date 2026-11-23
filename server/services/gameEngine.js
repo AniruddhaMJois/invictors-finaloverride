@@ -361,6 +361,21 @@ export class GameEngine {
     this.teams.set(t.id, teamObj);
     this.teams.set(String(t.id), teamObj);
     this.teams.set(Number(t.id), teamObj);
+
+    // Restore Stage 4 stations solved if available in DB
+    try {
+      const s4Row = await db.get(
+        "SELECT value FROM stage_data WHERE team_id = ? AND stage = 4 AND key = 'stations_solved'",
+        [t.id]
+      );
+      if (s4Row && s4Row.value) {
+        const solvedArr = JSON.parse(s4Row.value);
+        this.stage4Stations.set(t.id, new Set(solvedArr));
+        this.stage4Stations.set(String(t.id), new Set(solvedArr));
+        this.stage4Stations.set(Number(t.id), new Set(solvedArr));
+      }
+    } catch (e) {}
+
     return teamObj;
   }
 
@@ -521,27 +536,33 @@ export class GameEngine {
     );
     const teamId = teamInsert.lastID;
 
-    const insertedMembers = [];
-    for (let i = 0; i < cleanMembers.length; i++) {
-      const mInsert = await db.run(
-        'INSERT INTO members (team_id, name, is_leader) VALUES (?, ?, ?)',
-        [teamId, cleanMembers[i], i === 0]
-      );
-      insertedMembers.push({ id: mInsert.lastID, name: cleanMembers[i], isLeader: i === 0 });
-    }
+    // Parallel insert of squad members
+    const insertedMembers = await Promise.all(
+      cleanMembers.map(async (name, i) => {
+        const mInsert = await db.run(
+          'INSERT INTO members (team_id, name, is_leader) VALUES (?, ?, ?)',
+          [teamId, name, i === 0]
+        );
+        return { id: mInsert.lastID, name, isLeader: i === 0 };
+      })
+    );
 
     const leaderToken = this.generateDeviceToken(teamId, insertedMembers[0].id);
-    await db.run('INSERT INTO devices (token, team_id, member_id, bound_at) VALUES (?, ?, ?, ?)', [
-      leaderToken,
-      teamId,
-      insertedMembers[0].id,
-      now
+
+    // Parallel insert of initial leader device and empty squad notepad
+    await Promise.all([
+      db.run('INSERT INTO devices (token, team_id, member_id, bound_at) VALUES (?, ?, ?, ?)', [
+        leaderToken,
+        teamId,
+        insertedMembers[0].id,
+        now
+      ]),
+      db.run('INSERT INTO notes (team_id, text) VALUES (?, ?)', [teamId, ''])
     ]);
     this.tokens.set(leaderToken, { teamId, memberId: insertedMembers[0].id });
 
-    await db.run('INSERT INTO notes (team_id, text) VALUES (?, ?)', [teamId, '']);
-
-    await supabaseSync.syncTeamRegister(
+    // Non-blocking background sync for Supabase REST (prevents blocking HTTP registration)
+    supabaseSync.syncTeamRegister(
       {
         id: teamId,
         teamName: cleanTeamName,
@@ -556,13 +577,12 @@ export class GameEngine {
       insertedMembers,
       leaderToken,
       insertedMembers[0].id
-    );
+    ).catch((err) => {
+      console.warn('Non-blocking background supabaseSync notice:', err?.message);
+    });
 
     const readyTime = Date.now();
     const effectiveStartTime = teamStartTime ? readyTime : null;
-    if (teamStartTime && readyTime !== now) {
-      await db.run('UPDATE teams SET start_time = ? WHERE id = ?', [readyTime, teamId]);
-    }
 
     const teamState = {
       id: teamId,
@@ -729,11 +749,24 @@ export class GameEngine {
         this.stage4Stations.set(Number(teamId), new Set([1, 2, 3]));
         this.stage4Stations.set(String(teamId), new Set([1, 2, 3]));
       } else {
-        const solved =
+        let solved =
           this.stage4Stations.get(teamId) ||
           this.stage4Stations.get(Number(teamId)) ||
-          this.stage4Stations.get(String(teamId)) ||
-          new Set();
+          this.stage4Stations.get(String(teamId));
+        if (!solved || solved.size < 3) {
+          const s4Row = await db.get(
+            "SELECT value FROM stage_data WHERE team_id = ? AND stage = 4 AND key = 'stations_solved'",
+            [teamId]
+          ).catch(() => null);
+          if (s4Row && s4Row.value) {
+            try {
+              solved = new Set(JSON.parse(s4Row.value));
+              this.stage4Stations.set(teamId, solved);
+              this.stage4Stations.set(Number(teamId), solved);
+            } catch (e) {}
+          }
+        }
+        solved = solved || new Set();
         if (solved.size < 3) {
           return {
             correct: false,
